@@ -42,7 +42,7 @@
   const canReview = key => window.STUDIO_ROLE === 'admin' || window.STUDIO_PERMISSIONS?.[key] === true;
   const canEnterReviews = () => canReview('reviewsView') || canReview('reviewsClient');
   async function saveRecord(record) {
-    if (!canReview('reviewsEdit')) throw new Error('No tenés permiso para editar ViewSync.');
+    if (!canReview('reviewsEdit')) throw new Error('No tenés permiso para editar Mira.');
     const token = state.projects.find(project => project.id === record.projectId)?.versions.find(version => version.id === record.versionId)?.shareToken;
     if (token && record.source === 'dropbox') await (await cloud()).upsertSharedFile(token, record);
     if (window.STUDIO_SIGNED_IN && !isGuestReview()) await (await cloud()).saveStaffFile(record);
@@ -174,7 +174,7 @@
     stopMedia(); state.active = null; state.projectId = projectId; state.versionId = null;
     $('#dashboardView').hidden = true; $('#reviewsHome').hidden = false; $('#reviewsView').hidden = true;
     $('#storyboardsNav').classList.remove('is-active'); $('#reviewsNav').classList.add('is-active');
-    $('#breadcrumbTitle').textContent = currentProject()?.title || 'ViewSync';
+    $('#breadcrumbTitle').textContent = currentProject()?.title || 'Mira';
     renderHome();
   }
   window.STUDIO_SHOW_REVIEWS = () => showReviewsHome();
@@ -658,9 +658,9 @@
     $('#dashboardView').hidden = true; $('#reviewsHome').hidden = true; $('#reviewsView').hidden = false; document.body.classList.add('reviews-open');
     $('#reviewsHudRestore').hidden = true;
     $('#storyboardsNav').classList.remove('is-active'); $('#reviewsNav').classList.add('is-active');
-    $('#breadcrumbTitle').textContent = currentVersion()?.title || 'ViewSync';
+    $('#breadcrumbTitle').textContent = currentVersion()?.title || 'Mira';
     $('#reviewsLibraryEyebrow').textContent = currentProject()?.title?.toUpperCase() || 'REVISIÓN DE MATERIAL';
-    $('#reviewsLibraryTitle').firstChild.textContent = currentVersion()?.title || 'ViewSync';
+    $('#reviewsLibraryTitle').firstChild.textContent = currentVersion()?.title || 'Mira';
     applyReviewPermissions();
     requestAnimationFrame(fitSurface);
   }
@@ -699,7 +699,7 @@
         if (!state.projects.some(entry => entry.id === project.id)) state.projects.push(project);
       }
       renderList();
-    } catch (error) { showStatus('ViewSync necesita almacenamiento local del navegador para guardar archivos y comentarios.'); console.error(error); }
+    } catch (error) { showStatus('Mira necesita almacenamiento local del navegador para guardar archivos y comentarios.'); console.error(error); }
     if (sharedReview) {
       const record = { id: crypto.randomUUID(), name: sharedReview.name, kind: sharedReview.kind, source: 'dropbox', sourceUrl: sharedReview.sourceUrl, size: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), comments: [], ephemeral: true };
       state.records.unshift(record);
@@ -813,10 +813,10 @@
     $('#reviewsCustomPermissions').hidden = role !== 'custom';
     $('#reviewsPersonShares').hidden = role !== 'client';
     $('#reviewsPersonRoleHelp').textContent = role === 'client' ? 'En su cuenta solo verá y comentará las reviews asignadas. Los enlaces públicos siguen funcionando para quien los tenga.'
-      : role === 'viewer' ? 'Lectura permite ver todos los proyectos de ViewSync.'
-      : role === 'collaborator' ? 'Puede ver y editar toda la biblioteca de ViewSync.'
-      : role === 'manager' ? 'Puede ver, crear, editar y compartir toda la biblioteca de ViewSync.'
-      : 'Mira tiene acceso completo de edición; ViewSync usa el rol elegido.';
+      : role === 'viewer' ? 'Lectura permite ver todos los proyectos de Mira.'
+      : role === 'collaborator' ? 'Puede ver y editar toda la biblioteca de Mira.'
+      : role === 'manager' ? 'Puede ver, crear, editar y compartir toda la biblioteca de Mira.'
+      : 'Visto tiene acceso completo de edición; Mira usa el rol elegido.';
   }
   function personPermissions() {
     const permissions = { storyboards: $('#reviewsPersonStoryboardsRole').value === 'editor', reviewsClient: false,
@@ -864,7 +864,7 @@
     const role = document.createElement('span'); role.textContent = owner ? 'Administrador' : person.pending ? 'Sin asignar' : reviewRoleLabels[reviewRoleFor(person.permissions || { reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true })];
     const apps = document.createElement('span');
     const permissions = person.permissions || (person.pending ? {} : { storyboards: true, reviewsView: true });
-    apps.textContent = owner ? 'Mira · ViewSync' : [permissions.storyboards && 'Mira', (permissions.reviewsView || permissions.reviewsClient) && 'ViewSync'].filter(Boolean).join(' · ') || 'Sin aplicaciones';
+    apps.textContent = owner ? 'Visto · Mira' : [permissions.storyboards && 'Visto', (permissions.reviewsView || permissions.reviewsClient) && 'Mira'].filter(Boolean).join(' · ') || 'Sin aplicaciones';
     const status = document.createElement('span'); status.className = `reviews-staff-state${person.pending ? ' is-pending' : person.active === false ? ' is-disabled' : ''}`; status.textContent = owner ? 'Activo' : personState(person);
     const arrow = document.createElement('span'); arrow.textContent = owner ? '' : '›'; arrow.setAttribute('aria-hidden', 'true');
     row.append(identity, role, apps, status, arrow);
@@ -1101,7 +1101,7 @@
   $('#reviewsHudRestore').addEventListener('click', toggleHud);
   document.addEventListener('fullscreenchange', () => { $('#reviewsFullscreenBtn').textContent = document.fullscreenElement ? 'F · Salir de pantalla completa' : 'F · Pantalla completa'; requestAnimationFrame(fitSurface); });
   document.addEventListener('dragover', event => { if (!$('#reviewsView').hidden && event.dataTransfer?.types.includes('Files')) event.preventDefault(); });
-  document.addEventListener('drop', event => { if (!$('#reviewsView').hidden && event.dataTransfer?.files?.length) { event.preventDefault(); showStatus('En ViewSync solo podés vincular archivos ya compartidos desde Dropbox.'); } });
+  document.addEventListener('drop', event => { if (!$('#reviewsView').hidden && event.dataTransfer?.files?.length) { event.preventDefault(); showStatus('En Mira solo podés vincular archivos ya compartidos desde Dropbox.'); } });
   $('#reviewsStage').addEventListener('wheel', event => { if (!state.active || state.active.kind === 'model') return; event.preventDefault(); zoomAt(Math.exp(-event.deltaY * .002), event.clientX, event.clientY); }, { passive: false });
   $('#reviewsStage').addEventListener('pointerdown', event => { if (!state.zHeld || !state.active || event.button !== 0) return; event.preventDefault(); state.zoomPointer = { id: event.pointerId, y: event.clientY, scale: state.view.scale, moved: false }; $('#reviewsStage').setPointerCapture(event.pointerId); });
   $('#reviewsStage').addEventListener('pointermove', event => { const drag = state.zoomPointer; if (!drag || drag.id !== event.pointerId) return; if (Math.abs(event.clientY - drag.y) > 3) drag.moved = true; if (drag.moved) zoomAt(Math.exp((drag.y - event.clientY) * .012) * drag.scale / state.view.scale, event.clientX, event.clientY); });

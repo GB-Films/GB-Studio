@@ -1,8 +1,8 @@
 # GB Studio
 
-La [página principal de GB Studio](https://gb-films.github.io/StoryApp/) reúne los accesos a [Mira](https://gb-films.github.io/StoryApp/?app=storyboards) para organizar tomas y [ViewSync](https://gb-films.github.io/StoryApp/?app=reviews) para corregir fotos y videos. La cabecera permite volver al inicio o cambiar entre las herramientas habilitadas para la cuenta. Los enlaces de revisiones compartidos anteriormente siguen abriendo el visor. Las rutas internas conservan `storyboards` y `reviews` para no cortar los enlaces existentes.
+La [página principal de GB Studio](https://gb-films.github.io/StoryApp/) reúne los accesos a [Visto](https://gb-films.github.io/StoryApp/?app=storyboards) para organizar tomas y [Mira](https://gb-films.github.io/StoryApp/?app=reviews) para corregir fotos y videos. También presenta **PDR**, la futura herramienta de planes de rodaje, como «En proceso» sin acceso funcional. La cabecera permite volver al inicio o cambiar entre las herramientas habilitadas para la cuenta. Los enlaces de revisiones compartidos anteriormente siguen abriendo el visor. Las rutas internas conservan `storyboards` y `reviews` para no cortar los enlaces existentes.
 
-## ViewSync
+## Mira
 
 - Para revisar un archivo ya guardado en Dropbox, compartí **ese archivo** y pegá su enlace en «Vincular desde Dropbox». Reviews conserva el enlace y reproduce el original; no lo sube ni crea otra copia. Dropbox recomienda `raw=1` para mostrar directamente el contenido de un enlace compartido, y la app lo aplica al reproducir.
 - La vista directa sin conexión OAuth requiere un enlace accesible para cualquiera que lo tenga, sin contraseña ni restricción de equipo. Quien obtenga ese enlace podrá abrir el archivo en Dropbox. Si la política de la productora exige enlaces privados, hará falta una integración autenticada de Dropbox; esta modalidad por enlace no evita sus permisos ni garantiza que todos los formatos de video se reproduzcan en el navegador.
