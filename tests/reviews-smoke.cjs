@@ -61,6 +61,37 @@ const server = http.createServer((request, response) => {
     const stageBox = await page.locator('#reviewsStage').boundingBox();
     assert.ok(mediaBox.width <= stageBox.width && mediaBox.height <= stageBox.height, 'portrait media fits inside the review stage');
     await page.locator('#reviewsDrawBtn').click();
+    const inkAt = async targets => page.evaluate(points => {
+      const canvas = document.querySelector('#reviewsCanvas');
+      const { width, height } = canvas;
+      const pixels = canvas.getContext('2d').getImageData(0, 0, width, height).data;
+      const hits = points.map(() => 0);
+      let outside = 0;
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        if (pixels[(y * width + x) * 4 + 3] < 30) continue;
+        const hit = points.findIndex(([px, py]) => Math.hypot((x / width - px) * canvas.clientWidth, (y / height - py) * canvas.clientHeight) < 12);
+        if (hit < 0) outside++; else hits[hit]++;
+      }
+      return { hits, outside, backingWidth: width, logicalWidth: canvas.clientWidth };
+    }, targets);
+    const drawDot = async (x, y) => {
+      const bounds = await page.locator('#reviewsCanvas').boundingBox();
+      await page.mouse.click(bounds.x + bounds.width * x, bounds.y + bounds.height * y);
+    };
+    await drawDot(.35, .38);
+    let ink = await inkAt([[.35, .38]]);
+    assert.ok(ink.hits[0] > 0 && ink.outside === 0, 'a stroke starts directly under the cursor');
+    await page.mouse.wheel(0, -300);
+    await page.waitForFunction(() => document.querySelector('#reviewsZoomValue').textContent !== '100%');
+    ink = await inkAt([[.35, .38]]);
+    assert.ok(ink.hits[0] > 0 && ink.outside === 0, 'existing strokes remain fixed to the media after zoom');
+    assert.ok(ink.backingWidth <= ink.logicalWidth * 2 + 1, 'zoom does not enlarge the canvas backing store');
+    await drawDot(.62, .55);
+    ink = await inkAt([[.35, .38], [.62, .55]]);
+    assert.ok(ink.hits.every(count => count > 0) && ink.outside === 0, 'new strokes stay aligned with the cursor after zoom');
+    await page.locator('#reviewsUndoBtn').click();
+    await page.locator('#reviewsUndoBtn').click();
+    await page.keyboard.press('H');
     const box = await page.locator('#reviewsCanvas').boundingBox();
     await page.mouse.move(box.x + box.width * .2, box.y + box.height * .2);
     await page.mouse.down();
@@ -130,8 +161,10 @@ const server = http.createServer((request, response) => {
     await page.waitForFunction(() => document.querySelector('#reviewsCount').textContent === '2');
     await page.waitForFunction(() => document.querySelector('#reviewsImage').naturalWidth === 360);
     assert.match(await page.locator('#reviewsImage').getAttribute('src'), /rlkey=abc123&raw=1/);
-    assert.equal(await page.locator('#reviewsOpenSource').isVisible(), true);
-    assert.match(await page.locator('#reviewsOpenSource').getAttribute('href'), /rlkey=abc123$/);
+    assert.equal(await page.locator('#reviewsOpenSource').count(), 0, 'the viewer does not link out to Dropbox');
+    assert.equal(await page.locator('#reviewsMediaDetails').count(), 0, 'the file subtitle is removed');
+    assert.equal(await page.locator('#reviewsDownloadBtn').isVisible(), false, 'download appears only for MP4');
+    assert.ok((await page.locator('.reviews-main-head').boundingBox()).height <= 60, 'the header leaves more height for the media');
     assert.equal(await page.locator('#reviewsMediaError').isVisible(), false);
     await page.locator('#reviewsLinkBtn').click();
     await page.locator('#reviewsLinkUrl').fill('https://www.dropbox.com/scl/fi/id/plano.jpg?rlkey=abc123&raw=1');
@@ -402,6 +435,9 @@ const server = http.createServer((request, response) => {
       await migration.locator('#reviewsNav').click();
       await migration.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Reviews anteriores' }).click();
       assert.equal(await migration.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Review original' }).count(), 1, 'old records are grouped in a legacy review');
+      await migration.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Review original' }).click();
+      assert.equal(await migration.locator('.reviews-main-head #reviewsDownloadBtn').isVisible(), true, 'MP4 download is available in the compact header');
+      assert.equal(await migration.locator('#reviewsViewTools #reviewsDownloadBtn').count(), 0, 'download is not duplicated below the viewer');
       const migrated = await migration.evaluate(async () => new Promise(resolve => { const open = indexedDB.open('gb-studio-reviews-v1'); open.onsuccess = () => { const get = open.result.transaction('items').objectStore('items').get('legacy-file'); get.onsuccess = () => resolve(get.result); }; }));
       assert.ok(migrated.projectId && migrated.versionId && migrated.comments[0].text === 'Conservar comentario', 'migration preserves existing feedback');
       assert.equal(await migration.evaluate(async () => new Promise(resolve => { const open = indexedDB.open('gb-studio-reviews-v1'); open.onsuccess = () => { const get = open.result.transaction('media').objectStore('media').get('legacy-file'); get.onsuccess = () => resolve(get.result?.size || 0); }; })), 14, 'migration preserves the original local media');
