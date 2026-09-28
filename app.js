@@ -2428,6 +2428,7 @@ $$('[data-export]').forEach(button => button.addEventListener('click', async () 
 document.addEventListener('click', event => { if (!event.target.closest('.page-thumb-wrap')) closePageMenus(); });
 window.addEventListener('resize', () => requestAnimationFrame(fitCanvasPage));
 document.addEventListener('keydown', event => {
+  if (!$('#reviewsView').hidden) return;
   if (!canEditVisto()) {
     if (event.key === 'Escape') closeVersionsModal();
     return;

@@ -4,7 +4,7 @@
   const $ = selector => document.querySelector(selector);
   const DB_NAME = 'gb-studio-reviews-v1';
   const ACTIVE_KEY = 'gb-studio-reviews-active-v1';
-  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], activeCommentId: null, pointerId: null, shapeRawPoint: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, panPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
+  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], undoHistory: [], activeCommentId: null, pointerId: null, shapeRawPoint: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, panPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
   const video = $('#reviewsVideo');
   const image = $('#reviewsImage');
   const canvas = $('#reviewsCanvas');
@@ -370,7 +370,23 @@
   function currentTime() { return isVideo() ? Math.max(0, video.currentTime || 0) : 0; }
   function showStatus(message) { $('#reviewsCommentContext').textContent = message; }
   function stopMedia() { video.pause(); video.removeAttribute('src'); video.load(); image.removeAttribute('src'); state.model?.dispose(); state.model = null; if (state.mediaUrl) URL.revokeObjectURL(state.mediaUrl); state.mediaUrl = null; }
-  function clearAnnotation() { state.draft = []; state.scratch = []; state.activeCommentId = null; redraw(); renderCommentList(); }
+  function rememberAnnotation(action) { state.undoHistory.push(action); if (state.undoHistory.length > 50) state.undoHistory.shift(); }
+  function clearAnnotation() {
+    if (state.draft.length || state.scratch.length || visibleStrokes().length) {
+      rememberAnnotation({ type: 'clear', draft: structuredClone(state.draft), scratch: structuredClone(state.scratch), activeCommentId: state.activeCommentId, sketchMode: state.sketchMode });
+    }
+    state.draft = []; state.scratch = []; state.activeCommentId = null; redraw(); renderCommentList();
+  }
+  function undoAnnotation() {
+    const action = state.undoHistory.pop();
+    if (action?.type === 'clear') {
+      state.draft = action.draft; state.scratch = action.scratch;
+      state.activeCommentId = action.activeCommentId; state.sketchMode = action.sketchMode;
+      syncDrawingControls(); renderCommentList();
+    } else if (action?.type === 'stroke') state[action.mode].pop();
+    else (state.sketchMode ? state.scratch : state.draft).pop();
+    redraw();
+  }
   function fps() { return Number(state.active?.fps) || 24; }
   function firstFrame() { return Number.isSafeInteger(state.active?.frameStart) ? state.active.frameStart : 1; }
   function frameIndex() { return Math.round(currentTime() * fps()); }
@@ -635,7 +651,7 @@
     const record = state.records.find(entry => entry.id === id); if (!record) return;
     stopPan();
     state.stopComments?.(); state.stopComments = null;
-    stopMedia(); state.active = record; state.draft = []; state.scratch = []; state.sketchMode = false; state.activeCommentId = null; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; resetView();
+    stopMedia(); state.active = record; state.draft = []; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.activeCommentId = null; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; resetView();
     localStorage.setItem(ACTIVE_KEY, id);
     renderList(); renderCommentList();
     $('#reviewsMediaTitle').textContent = record.name;
@@ -697,7 +713,7 @@
     const comment = state.active?.comments.find(entry => entry.id === id); if (!comment) return;
     video.pause();
     if (isVideo()) video.currentTime = Math.min(comment.time, Number.isFinite(video.duration) ? video.duration : comment.time);
-    state.activeCommentId = id; state.draft = []; state.scratch = []; state.sketchMode = false; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null;
+    state.activeCommentId = id; state.draft = []; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null;
     canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false');
     renderCommentList(); redraw(); updateClock();
   }
@@ -739,7 +755,7 @@
   function clearViewer() {
     stopPan();
     state.stopComments?.(); state.stopComments = null;
-    stopMedia(); state.active = null; localStorage.removeItem(ACTIVE_KEY);
+    stopMedia(); state.active = null; state.undoHistory = []; localStorage.removeItem(ACTIVE_KEY);
     $('#reviewsMediaTitle').textContent = 'Elegí un archivo'; $('#reviewsMediaTitle').removeAttribute('title');
     $('#reviewsEmpty').hidden = false; $('#reviewsMediaSurface').hidden = true; $('#reviewsTimeline').hidden = true;
     closeShortcuts();
@@ -1365,6 +1381,9 @@
   const endZoom = event => { const drag = state.zoomPointer; if (!drag || drag.id !== event.pointerId) return; if (!drag.moved && event.type === 'pointerup') zoomAt(1.5, event.clientX, event.clientY); state.zoomPointer = null; if ($('#reviewsStage').hasPointerCapture(event.pointerId)) $('#reviewsStage').releasePointerCapture(event.pointerId); };
   $('#reviewsStage').addEventListener('pointerup', endZoom); $('#reviewsStage').addEventListener('pointercancel', endZoom);
   document.addEventListener('keydown', event => {
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'z' && !$('#reviewsView').hidden && state.active && !isEditingText(event.target) && !state.saving) {
+      event.preventDefault(); undoAnnotation(); return;
+    }
     if ($('#reviewsView').hidden || isEditingText(event.target) || event.altKey || event.ctrlKey || event.metaKey) return;
     if (event.key.toLowerCase() === 'z') { state.zHeld = true; $('#reviewsStage').classList.add('is-zooming'); event.preventDefault(); return; }
     const key = event.key.toLowerCase();
@@ -1392,7 +1411,7 @@
   video.addEventListener('loadedmetadata', () => { $('#reviewsMediaSurface').style.setProperty('--review-aspect', String((video.videoWidth || 16) / (video.videoHeight || 9))); renderPlaybackSettings(); renderMarkers(); fitSurface(); });
   image.addEventListener('load', () => { $('#reviewsMediaSurface').style.setProperty('--review-aspect', String((image.naturalWidth || 16) / (image.naturalHeight || 9))); fitSurface(); });
   video.addEventListener('timeupdate', () => { if (!video.paused && Number.isFinite(state.active?.outPoint) && currentTime() >= state.active.outPoint) { video.pause(); video.currentTime = state.active.outPoint; } updateClock(); });
-  video.addEventListener('play', () => { state.activeCommentId = null; state.scratch = []; state.sketchMode = false; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false'); redraw(); renderCommentList(); updateClock(); });
+  video.addEventListener('play', () => { state.activeCommentId = null; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false'); redraw(); renderCommentList(); updateClock(); });
   video.addEventListener('pause', updateClock);
   const mediaError = () => { if (state.active?.source === 'dropbox') { $('#reviewsMediaError').hidden = false; showStatus('No se pudo abrir el enlace de Dropbox. Revisá el acceso y el formato del archivo.'); } else showStatus('El formato no se puede reproducir en este navegador. Probá con MP4 (H.264), WebM o una foto compatible.'); };
   video.addEventListener('error', mediaError);
@@ -1446,9 +1465,9 @@
   document.addEventListener('keydown', event => { if (event.key === 'Escape') closeToolMenus(); });
   $('#reviewsDrawBtn').addEventListener('click', () => { if (!state.active) return; video.pause(); state.activeCommentId = null; state.drawing = state.sketchMode || !state.drawing; state.sketchMode = false; syncDrawingControls(); redraw(); });
   $('#reviewsSketchBtn').addEventListener('click', () => { if (!state.active) return; video.pause(); state.activeCommentId = null; state.sketchMode = !state.sketchMode; state.drawing = state.sketchMode; syncDrawingControls(); redraw(); });
-  $('#reviewsUndoBtn').addEventListener('click', () => { (state.sketchMode ? state.scratch : state.draft).pop(); redraw(); });
+  $('#reviewsUndoBtn').addEventListener('click', undoAnnotation);
   $('#reviewsClearBtn').addEventListener('click', clearAnnotation);
-  canvas.addEventListener('pointerdown', event => { if (!state.drawing || !state.active || state.zHeld || event.button !== 0) return; event.preventDefault(); state.activeCommentId = null; state.pointerId = event.pointerId; state.shapeRawPoint = pointerPoint(event); canvas.setPointerCapture(event.pointerId); (state.sketchMode ? state.scratch : state.draft).push({ tool: state.tool, color: $('#reviewsColor').value, points: [state.shapeRawPoint] }); redraw(); });
+  canvas.addEventListener('pointerdown', event => { if (!state.drawing || !state.active || state.zHeld || event.button !== 0) return; event.preventDefault(); state.activeCommentId = null; state.pointerId = event.pointerId; state.shapeRawPoint = pointerPoint(event); canvas.setPointerCapture(event.pointerId); const mode = state.sketchMode ? 'scratch' : 'draft'; rememberAnnotation({ type: 'stroke', mode }); state[mode].push({ tool: state.tool, color: $('#reviewsColor').value, points: [state.shapeRawPoint] }); redraw(); });
   function updateActiveShape(point, shiftKey) {
     const stroke = (state.sketchMode ? state.scratch : state.draft).at(-1);
     if (!stroke || !['line', 'arrow', 'rect', 'ellipse', 'square', 'circle'].includes(stroke.tool)) return false;
@@ -1483,7 +1502,7 @@
         const author = isGuestReview() ? window.STUDIO_ROLE === 'review_guest' ? window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Google' : state.guestName || 'Invitado' : window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Equipo';
         await (await cloud()).addSharedComment(token, state.active.id, comment, author);
       } else await saveRecord(state.active);
-      $('#reviewsCommentText').value = ''; state.draft = []; if (!state.sketchMode) { state.activeCommentId = comment.id; state.drawing = false; canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); }
+      $('#reviewsCommentText').value = ''; state.draft = []; state.undoHistory = []; if (!state.sketchMode) { state.activeCommentId = comment.id; state.drawing = false; canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); }
       renderCommentList(); renderMarkers(); renderList(); redraw();
     } catch (error) { state.active.comments.pop(); if (wasEphemeral) state.active.ephemeral = true; showStatus(token ? 'No se pudo compartir el comentario. Revisá tu conexión o los permisos de la review.' : 'No se pudo guardar el comentario. Revisá el espacio disponible.'); console.error(error); }
     finally { state.saving = false; $('#reviewsCommentForm button[type=submit]').disabled = false; }
