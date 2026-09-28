@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="GB Studio: Visto y ViewSync para los proyectos de GB Films." />
+    <meta name="description" content="GB Studio: Mira y ViewSync para los proyectos de GB Films." />
     <meta name="theme-color" content="#111111" />
     <title>GB Studio · Inicio</title>
     <script>
@@ -19,8 +19,8 @@
         document.title = 'GB Studio · ViewSync';
         document.querySelector('meta[name="description"]').content = 'GB Studio ViewSync: revisá fotos y videos con comentarios.';
       } else if (document.documentElement.dataset.studioApp === 'storyboards') {
-        document.title = 'GB Studio · Visto';
-        document.querySelector('meta[name="description"]').content = 'GB Studio Visto: organizá las tomas de tus proyectos.';
+        document.title = 'GB Studio · Mira';
+        document.querySelector('meta[name="description"]').content = 'GB Studio Mira: organizá las tomas de tus proyectos.';
       }
     </script>
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
@@ -44,7 +44,7 @@
     <div class="app-shell">
       <header class="topbar">
         <a class="brand" href="./" aria-label="Inicio de GB Studio"><img class="brand-logo" src="assets/gb-films-logo-white.png" alt="GB Films" /><span class="brand-divider"></span><span class="brand-product">GB<br /><em>STUDIO</em></span></a>
-        <nav class="studio-nav" aria-label="Secciones de GB Studio"><a class="studio-nav-link studio-nav-home" id="homeNav" href="./">Inicio</a><button class="studio-nav-link" id="storyboardsNav" type="button">Visto</button><button class="studio-nav-link" id="reviewsNav" type="button">ViewSync</button></nav>
+        <nav class="studio-nav" aria-label="Secciones de GB Studio"><a class="studio-nav-link studio-nav-home" id="homeNav" href="./">Inicio</a><button class="studio-nav-link" id="storyboardsNav" type="button">Mira</button><button class="studio-nav-link" id="reviewsNav" type="button">ViewSync</button></nav>
         <div class="breadcrumbs"><span>PROYECTOS</span><b>/</b><strong id="breadcrumbTitle">Todos los proyectos</strong></div>
         <div class="top-actions"><button class="button button-ghost" id="backToDashboardBtn" type="button" hidden>← Proyectos</button><button class="button button-ghost" id="manageVersionsBtn" type="button" hidden>Versiones</button><button class="button button-ghost" id="createVersionBtn" type="button" hidden>＋ Crear versión</button><button class="button button-primary" id="exportBtn" type="button" hidden><span>↗</span> Exportar</button><button class="studio-settings-button" id="reviewsAdminBtn" type="button" aria-label="Configuración" title="Configuración" hidden>⚙</button><button class="account-button" id="accountButton" type="button" aria-label="Iniciar sesión con Google" aria-controls="profileModal" aria-expanded="false"><span class="account-avatar" id="accountAvatar">G</span><span class="account-label" id="accountLabel">Iniciar sesión</span></button></div>
       </header>
@@ -65,7 +65,7 @@
         <div class="studio-home-inner">
           <section class="studio-home-tools" aria-labelledby="studioHomeToolsTitle"><div class="studio-home-tools-header"><div><span class="studio-home-kicker">APLICACIONES</span><h2 id="studioHomeToolsTitle">¿Dónde trabajamos hoy?</h2></div><span>Seleccioná una herramienta para entrar ↘</span></div>
             <div class="studio-home-cards">
-              <a class="studio-home-card studio-home-card-storyboards is-unavailable" id="homeStoryboardsLink" aria-disabled="true"><span class="studio-home-card-top"><span>01 / CREACIÓN</span><span class="studio-home-card-arrow" aria-hidden="true">↗</span></span><span class="studio-home-card-art studio-home-storyboard-art" aria-hidden="true"><span class="studio-home-shot"><i></i><i></i></span><span class="studio-home-shot"><i></i><i></i></span><span class="studio-home-shot"><i></i><i></i></span></span><span class="studio-home-card-bottom"><strong>Visto</strong><span>Organizá tomas, armá páginas y presentá la idea antes de producir.</span><small id="homeStoryboardsStatus">Verificando acceso…</small></span></a>
+              <a class="studio-home-card studio-home-card-storyboards is-unavailable" id="homeStoryboardsLink" aria-disabled="true"><span class="studio-home-card-top"><span>01 / CREACIÓN</span><span class="studio-home-card-arrow" aria-hidden="true">↗</span></span><span class="studio-home-card-art studio-home-storyboard-art" aria-hidden="true"><span class="studio-home-shot"><i></i><i></i></span><span class="studio-home-shot"><i></i><i></i></span><span class="studio-home-shot"><i></i><i></i></span></span><span class="studio-home-card-bottom"><strong>Mira</strong><span>Organizá tomas, armá páginas y presentá la idea antes de producir.</span><small id="homeStoryboardsStatus">Verificando acceso…</small></span></a>
               <a class="studio-home-card studio-home-card-reviews is-unavailable" id="homeReviewsLink" aria-disabled="true"><span class="studio-home-card-top"><span>02 / COLABORACIÓN</span><span class="studio-home-card-arrow" aria-hidden="true">↗</span></span><span class="studio-home-card-art studio-home-reviews-art" aria-hidden="true"><span class="studio-home-review-frame"><span class="studio-home-play">▶</span><span class="studio-home-timeline"></span></span><span class="studio-home-review-comment"><i></i><i></i></span></span><span class="studio-home-card-bottom"><strong>ViewSync</strong><span>Revisá fotos y videos, compartí versiones y reuní las correcciones.</span><small id="homeReviewsStatus">Verificando acceso…</small></span></a>
             </div>
           </section>
@@ -75,7 +75,7 @@
 
       <main class="dashboard-view" id="dashboardView" hidden>
         <section class="dashboard-hero">
-          <div class="dashboard-hero-copy"><div class="eyebrow"><span class="eyebrow-line"></span> GB FILMS · VISTO</div><h1>Visualizá las tomas<br /><em>de cada proyecto.</em></h1><p>Organizá las tomas, diseñá cada página y presentá tus ideas con claridad.</p></div>
+          <div class="dashboard-hero-copy"><div class="eyebrow"><span class="eyebrow-line"></span> GB FILMS · MIRA</div><h1>Visualizá las tomas<br /><em>de cada proyecto.</em></h1><p>Organizá las tomas, diseñá cada página y presentá tus ideas con claridad.</p></div>
           <button class="dashboard-create-card" id="dashboardCreateBtn" type="button"><span class="dashboard-create-mark">＋</span><span><strong>Nuevo proyecto</strong><small>Comenzá un storyboard desde cero</small></span><span class="dashboard-create-arrow">→</span></button>
         </section>
         <section class="projects-section"><div class="projects-section-heading"><div><div class="eyebrow">ARCHIVO DE PROYECTOS</div><h2>Proyectos recientes</h2></div><div class="projects-toolbar"><span class="project-count" id="projectCount">0 proyectos</span><label class="project-sort-label" for="projectSort">ORDENAR POR</label><select class="project-sort-select" id="projectSort"><option value="updated">Últimos modificados</option><option value="title">Título</option><option value="client">Cliente</option></select></div></div><div class="project-grid" id="projectGrid"></div><div class="dashboard-empty" id="dashboardEmpty" hidden><div class="dashboard-empty-icon">▱</div><strong>Todavía no hay proyectos</strong><p>Creá tu primer storyboard para empezar a ordenar las tomas.</p><button class="button button-primary" type="button" id="dashboardEmptyCreateBtn">＋ Crear proyecto</button></div></section>
@@ -224,7 +224,7 @@
         <form id="reviewsPersonForm"><div class="studio-person-body"><div class="studio-person-heading"><div><h2 id="reviewsPersonTitle">Nueva persona</h2><p id="reviewsPersonSummary">Elegí el acceso de esta cuenta.</p></div><span id="reviewsPersonState">Pendiente</span></div>
           <div class="studio-person-fields"><label>NOMBRE<input id="reviewsPersonName" type="text" maxlength="100" placeholder="Nombre de la persona" /></label><label>GMAIL / CORREO GOOGLE<input id="reviewsPersonEmail" type="email" required placeholder="persona@empresa.com" /></label></div>
           <label class="studio-person-toggle"><input id="reviewsPersonActive" type="checkbox" checked /><span>Acceso habilitado</span></label>
-          <div class="studio-person-apps"><h3>APLICACIONES Y ROLES</h3><label>VISTO<select id="reviewsPersonStoryboardsRole"><option value="none">Sin acceso</option><option value="editor">Editor/a · acceso completo</option></select></label><label>VIEWSYNC<select id="reviewsPersonReviewsRole"><option value="none">Sin acceso</option><option value="client">Cliente · solo reviews asignadas</option><option value="viewer">Lectura · toda la biblioteca</option><option value="collaborator">Colaborador/a · ver y editar</option><option value="manager">Ejecutiva / Gerencia · acceso completo</option><option value="custom">Permisos personalizados</option></select></label><p id="reviewsPersonRoleHelp">Seleccioná un rol para cada aplicación.</p><div id="reviewsPersonShares" hidden><h4>REVISIONES ASIGNADAS</h4><p>Esta persona solo verá las reviews que selecciones acá.</p><div id="reviewsPersonShareList"></div></div><div id="reviewsCustomPermissions" hidden></div></div>
+          <div class="studio-person-apps"><h3>APLICACIONES Y ROLES</h3><label>MIRA<select id="reviewsPersonStoryboardsRole"><option value="none">Sin acceso</option><option value="editor">Editor/a · acceso completo</option></select></label><label>VIEWSYNC<select id="reviewsPersonReviewsRole"><option value="none">Sin acceso</option><option value="client">Cliente · solo reviews asignadas</option><option value="viewer">Lectura · toda la biblioteca</option><option value="collaborator">Colaborador/a · ver y editar</option><option value="manager">Ejecutiva / Gerencia · acceso completo</option><option value="custom">Permisos personalizados</option></select></label><p id="reviewsPersonRoleHelp">Seleccioná un rol para cada aplicación.</p><div id="reviewsPersonShares" hidden><h4>REVISIONES ASIGNADAS</h4><p>Esta persona solo verá las reviews que selecciones acá.</p><div id="reviewsPersonShareList"></div></div><div id="reviewsCustomPermissions" hidden></div></div>
           <p id="reviewsPersonStatus" role="status" aria-live="polite"></p></div><footer class="studio-person-actions"><button class="studio-person-remove" id="reviewsPersonRemove" type="button" hidden>Eliminar usuario</button><button class="studio-person-cancel" id="reviewsPersonCancel" type="button">Cerrar</button><button class="studio-person-save" id="reviewsPersonSave" type="submit">Guardar cambios</button></footer></form>
       </section>
     </div>
@@ -241,7 +241,7 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
     <script src="app.js?v=69"></script>
-    <script src="reviews.js?v=14"></script>
+    <script src="reviews.js?v=15"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {
@@ -253,6 +253,6 @@
         appId: '1:475470109485:web:c4400a214f973223aa91a4',
       };
     </script>
-    <script type="module" src="auth.js?v=12"></script>
+    <script type="module" src="auth.js?v=13"></script>
   </body>
 </html>

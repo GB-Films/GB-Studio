@@ -816,7 +816,7 @@
       : role === 'viewer' ? 'Lectura permite ver todos los proyectos de ViewSync.'
       : role === 'collaborator' ? 'Puede ver y editar toda la biblioteca de ViewSync.'
       : role === 'manager' ? 'Puede ver, crear, editar y compartir toda la biblioteca de ViewSync.'
-      : 'Visto tiene acceso completo de edición; ViewSync usa el rol elegido.';
+      : 'Mira tiene acceso completo de edición; ViewSync usa el rol elegido.';
   }
   function personPermissions() {
     const permissions = { storyboards: $('#reviewsPersonStoryboardsRole').value === 'editor', reviewsClient: false,
@@ -864,7 +864,7 @@
     const role = document.createElement('span'); role.textContent = owner ? 'Administrador' : person.pending ? 'Sin asignar' : reviewRoleLabels[reviewRoleFor(person.permissions || { reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true })];
     const apps = document.createElement('span');
     const permissions = person.permissions || (person.pending ? {} : { storyboards: true, reviewsView: true });
-    apps.textContent = owner ? 'Visto · ViewSync' : [permissions.storyboards && 'Visto', (permissions.reviewsView || permissions.reviewsClient) && 'ViewSync'].filter(Boolean).join(' · ') || 'Sin aplicaciones';
+    apps.textContent = owner ? 'Mira · ViewSync' : [permissions.storyboards && 'Mira', (permissions.reviewsView || permissions.reviewsClient) && 'ViewSync'].filter(Boolean).join(' · ') || 'Sin aplicaciones';
     const status = document.createElement('span'); status.className = `reviews-staff-state${person.pending ? ' is-pending' : person.active === false ? ' is-disabled' : ''}`; status.textContent = owner ? 'Activo' : personState(person);
     const arrow = document.createElement('span'); arrow.textContent = owner ? '' : '›'; arrow.setAttribute('aria-hidden', 'true');
     row.append(identity, role, apps, status, arrow);
