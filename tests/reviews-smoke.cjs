@@ -59,6 +59,18 @@ const server = http.createServer((request, response) => {
     const mediaBox = await page.locator('#reviewsMediaSurface').boundingBox();
     const stageBox = await page.locator('#reviewsStage').boundingBox();
     assert.ok(mediaBox.width <= stageBox.width && mediaBox.height <= stageBox.height, 'portrait media fits inside the review stage');
+    if (process.env.REVIEW_TOOLS_SCREENSHOT) {
+      await page.locator('#reviewsToolPicker').click();
+      await page.screenshot({ path: process.env.REVIEW_TOOLS_SCREENSHOT });
+      await page.locator('#reviewsToolPicker').click();
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#reviewsToolPicker').click();
+    const mobileToolMenu = await page.locator('#reviewsToolMenu').boundingBox();
+    if (process.env.REVIEW_TOOLS_MOBILE_SCREENSHOT) await page.screenshot({ path: process.env.REVIEW_TOOLS_MOBILE_SCREENSHOT, fullPage: true });
+    assert.ok(mobileToolMenu.x >= 0 && mobileToolMenu.x + mobileToolMenu.width <= 391, `drawing tools fit on a phone: ${JSON.stringify(mobileToolMenu)}`);
+    await page.locator('#reviewsToolPicker').click();
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.locator('#reviewsDrawBtn').click();
     const inkAt = async targets => page.evaluate(points => {
       const canvas = document.querySelector('#reviewsCanvas');
@@ -77,6 +89,24 @@ const server = http.createServer((request, response) => {
       const bounds = await page.locator('#reviewsCanvas').boundingBox();
       await page.mouse.click(bounds.x + bounds.width * x, bounds.y + bounds.height * y);
     };
+    const drawSegment = async (x0, y0, x1, y1) => {
+      const bounds = await page.locator('#reviewsCanvas').boundingBox();
+      await page.mouse.move(bounds.x + bounds.width * x0, bounds.y + bounds.height * y0);
+      await page.mouse.down();
+      await page.mouse.move(bounds.x + bounds.width * x1, bounds.y + bounds.height * y1, { steps: 5 });
+      await page.mouse.up();
+    };
+    const chooseTool = async tool => {
+      await page.locator('#reviewsToolPicker').click();
+      await page.locator(`[data-review-tool="${tool}"]`).click();
+      assert.equal(await page.locator(`[data-review-tool="${tool}"]`).getAttribute('aria-pressed'), 'true');
+      assert.equal(await page.locator('#reviewsToolPicker').getAttribute('aria-expanded'), 'false');
+    };
+    const alphaAt = async (x, y) => page.evaluate(([px, py]) => {
+      const canvas = document.querySelector('#reviewsCanvas');
+      const data = canvas.getContext('2d').getImageData(Math.round(px * canvas.width), Math.round(py * canvas.height), 1, 1).data;
+      return data[3];
+    }, [x, y]);
     await drawDot(.35, .38);
     let ink = await inkAt([[.35, .38]]);
     assert.ok(ink.hits[0] > 0 && ink.outside === 0, 'a stroke starts directly under the cursor');
@@ -90,12 +120,47 @@ const server = http.createServer((request, response) => {
     assert.ok(ink.hits.every(count => count > 0) && ink.outside === 0, 'new strokes stay aligned with the cursor after zoom');
     await page.locator('#reviewsUndoBtn').click();
     await page.locator('#reviewsUndoBtn').click();
+    await chooseTool('arrow');
+    await drawSegment(.25, .3, .65, .5);
+    assert.ok(await alphaAt(.45, .4) > 0, 'an arrow stays aligned while zoomed');
+    await page.locator('#reviewsUndoBtn').click();
     await page.keyboard.press('H');
+    for (const [tool, sample] of [
+      ['line', [.45, .4]], ['rect', [.45, .2]], ['square', [.45, .2]],
+      ['circle', [.45, .2]], ['ellipse', [.45, .2]], ['arrow', [.45, .4]]
+    ]) {
+      await chooseTool(tool);
+      await drawSegment(.2, .2, .7, .6);
+      assert.ok(await alphaAt(...sample) > 0, `${tool} renders on the annotation canvas`);
+      await page.locator('#reviewsUndoBtn').click();
+      assert.equal(await alphaAt(...sample), 0, `${tool} can be undone`);
+    }
+    await chooseTool('highlighter');
+    await drawSegment(.2, .2, .7, .6);
+    assert.ok((await alphaAt(.45, .4)) > 0 && (await alphaAt(.45, .4)) < 180, 'highlighter is translucent');
+    await page.locator('#reviewsUndoBtn').click();
+    await chooseTool('pen');
+    await drawSegment(.2, .2, .7, .6);
+    assert.ok(await alphaAt(.45, .4) > 0);
+    await chooseTool('eraser');
+    await drawSegment(.45, .35, .45, .45);
+    assert.equal(await alphaAt(.45, .4), 0, 'eraser removes part of the current drawing');
+    assert.ok(await alphaAt(.3, .28) > 0, 'eraser keeps the rest of the stroke');
+    await page.locator('#reviewsUndoBtn').click();
+    assert.ok(await alphaAt(.45, .4) > 0, 'erasing can be undone');
+    await page.locator('#reviewsUndoBtn').click();
+    await chooseTool('rect');
+    await drawSegment(.12, .12, .32, .32);
+    await chooseTool('pen');
     const box = await page.locator('#reviewsCanvas').boundingBox();
     await page.mouse.move(box.x + box.width * .2, box.y + box.height * .2);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width * .7, box.y + box.height * .6, { steps: 8 });
     await page.mouse.up();
+    await chooseTool('highlighter');
+    await drawSegment(.2, .75, .7, .75);
+    await chooseTool('eraser');
+    await drawSegment(.45, .35, .45, .45);
     await page.locator('#reviewsCommentText').fill('Ajustar el encuadre');
     await page.locator('#reviewsCommentForm button[type=submit]').click();
     await page.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '1');
@@ -106,6 +171,7 @@ const server = http.createServer((request, response) => {
     }));
     assert.equal(stored[0].comments[0].text, 'Ajustar el encuadre');
     assert.ok(stored[0].comments[0].strokes[0].points.length > 1, 'the drawing is attached to the comment');
+    assert.deepEqual(stored[0].comments[0].strokes.map(stroke => stroke.tool), ['rect', 'pen', 'highlighter', 'eraser'], 'shapes, highlighter and eraser are saved with the comment');
     await page.locator('#reviewsBackVersions').click();
     await page.locator('#reviewsCreateVersion').click();
     await page.locator('#reviewsEntityTitle').fill('VFX · V1');
@@ -134,6 +200,8 @@ const server = http.createServer((request, response) => {
     assert.match(await page.locator('.reviews-comment-text').textContent(), /Ajustar el encuadre/);
     await page.locator('.reviews-comment-open').click();
     assert.equal(await page.locator('.reviews-comment.is-selected').count(), 1);
+    assert.equal(await alphaAt(.45, .4), 0, 'the saved eraser still removes ink after reload');
+    assert.ok((await alphaAt(.45, .75)) > 0 && (await alphaAt(.45, .75)) < 180, 'the saved highlighter keeps its transparency after reload');
     assert.equal(await page.evaluate(() => {
       const canvas = document.querySelector('#reviewsCanvas');
       const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
