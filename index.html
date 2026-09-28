@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="stylesheet" href="styles.css?v=56" />
-    <link rel="stylesheet" href="reviews.css?v=18" />
+    <link rel="stylesheet" href="reviews.css?v=19" />
     <link rel="stylesheet" href="home.css?v=6" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
   </head>
@@ -127,8 +127,8 @@
             </div></div>
             <label class="reviews-color-label">Color <input id="reviewsColor" type="color" value="#ff3b30" aria-label="Color del dibujo" /></label>
             <button id="reviewsUndoBtn" class="reviews-tool" type="button" title="Deshacer último trazo">↶ Deshacer</button><button id="reviewsClearBtn" class="reviews-tool" type="button">Limpiar</button>
-            <div class="reviews-shortcuts"><button id="reviewsShortcutsBtn" type="button" aria-label="Atajos de teclado" aria-expanded="false" aria-controls="reviewsShortcutsMenu" title="Atajos de teclado"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M5 9h1m3 0h1m3 0h1m3 0h1M5 12h1m3 0h1m3 0h1m3 0h1M7 16h10" /></svg></button><div class="reviews-shortcuts-menu" id="reviewsShortcutsMenu" role="group" aria-label="Atajos de teclado" hidden><strong>Atajos de teclado</strong><button id="reviewsFitBtn" type="button"><kbd>H</kbd><span>Ajustar imagen</span></button><button id="reviewsFullscreenBtn" type="button"><kbd>F</kbd><span>Pantalla completa</span></button><button id="reviewsHudBtn" type="button"><kbd>Q</kbd><span>Ocultar controles</span></button><div><kbd>Z</kbd><span>Mantener y arrastrar para zoom</span></div><div><kbd>← →</kbd><span>Un fotograma atrás / adelante</span></div><div><kbd>↑ ↓</kbd><span>Comentario anterior / siguiente</span></div><div><kbd>Inicio / Fin</kbd><span>Ir al inicio / final del video</span></div><div><kbd>I / O</kbd><span>Marcar entrada / salida</span></div></div></div>
-            <span id="reviewsAnnotationHint">Scroll: zoom · Z + lápiz/clic y arrastrar: zoom · H: ajustar</span>
+            <div class="reviews-shortcuts"><button id="reviewsShortcutsBtn" type="button" aria-label="Atajos de teclado" aria-expanded="false" aria-controls="reviewsShortcutsMenu" title="Atajos de teclado"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M5 9h1m3 0h1m3 0h1m3 0h1m3 0h1M5 12h1m3 0h1m3 0h1m3 0h1M7 16h10" /></svg></button><div class="reviews-shortcuts-menu" id="reviewsShortcutsMenu" role="group" aria-label="Atajos de teclado" hidden><strong>Atajos de teclado</strong><button id="reviewsFitBtn" type="button"><kbd>H</kbd><span>Ajustar imagen</span></button><button id="reviewsFullscreenBtn" type="button"><kbd>F</kbd><span>Pantalla completa</span></button><button id="reviewsHudBtn" type="button"><kbd>Q</kbd><span>Ocultar controles</span></button><div><kbd>Ruedita</kbd><span>Clic y arrastrar para desplazar</span></div><div><kbd>Z</kbd><span>Mantener y arrastrar para zoom</span></div><div><kbd>← →</kbd><span>Un fotograma atrás / adelante</span></div><div><kbd>↑ ↓</kbd><span>Comentario anterior / siguiente</span></div><div><kbd>Inicio / Fin</kbd><span>Ir al inicio / final del video</span></div><div><kbd>I / O</kbd><span>Marcar entrada / salida</span></div></div></div>
+            <span id="reviewsAnnotationHint">Scroll: zoom · Clic en ruedita y arrastrar: desplazar · Z + clic y arrastrar: zoom · H: ajustar</span>
           </div>
         </section>
         <aside class="reviews-comments" aria-label="Comentarios de revisión"><div class="reviews-comments-head"><span class="eyebrow">FEEDBACK</span><h2>Comentarios <span id="reviewsCommentCount">0</span></h2><p id="reviewsCommentContext">Elegí un archivo para ver sus comentarios.</p></div><div class="reviews-comment-list" id="reviewsCommentList"></div><div id="reviewsGuestPrompt" class="reviews-guest-prompt" hidden><strong>¿Querés dejar un comentario?</strong><p id="reviewsGuestPromptCopy">Podés mirar y descargar el video sin iniciar sesión. Para comentar, elegí una opción:</p><form id="reviewsGuestNameForm"><label for="reviewsGuestName">ENTRAR COMO INVITADO</label><input id="reviewsGuestName" type="text" maxlength="60" autocomplete="name" placeholder="Tu nombre" required /><button id="reviewsGuestLogin" type="submit">Comentar con mi nombre →</button><small id="reviewsGuestNameError" role="alert"></small></form><div class="reviews-guest-divider">o</div><button id="reviewsGuestGoogle" class="reviews-guest-google" type="button">Continuar con Google →</button></div><p id="reviewsCommentIdentity" class="reviews-comment-identity" hidden></p><form id="reviewsCommentForm" class="reviews-comment-form" hidden><label for="reviewsCommentText">NUEVA CORRECCIÓN <span id="reviewsCommentTime"></span></label><textarea id="reviewsCommentText" rows="3" placeholder="Describí qué hay que ajustar…"></textarea><button type="submit">Guardar comentario <span>→</span></button><small id="reviewsCommentStorageNote">Las correcciones de esta review se comparten con las personas que tengan el enlace.</small></form></aside>
@@ -272,7 +272,7 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
     <script src="app.js?v=71"></script>
-    <script src="reviews.js?v=25"></script>
+    <script src="reviews.js?v=26"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {

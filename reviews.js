@@ -4,7 +4,7 @@
   const $ = selector => document.querySelector(selector);
   const DB_NAME = 'gb-studio-reviews-v1';
   const ACTIVE_KEY = 'gb-studio-reviews-active-v1';
-  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], activeCommentId: null, pointerId: null, shapeRawPoint: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
+  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], activeCommentId: null, pointerId: null, shapeRawPoint: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, panPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
   const video = $('#reviewsVideo');
   const image = $('#reviewsImage');
   const canvas = $('#reviewsCanvas');
@@ -389,6 +389,14 @@
     state.view.y += (1 - ratio) * (clientY - (stage.top + stage.height / 2 + state.view.y));
     state.view.scale = next; applyView();
   }
+  function stopPan() {
+    const pointer = state.panPointer;
+    if (!pointer) return;
+    state.panPointer = null;
+    const stage = $('#reviewsStage');
+    stage.classList.remove('is-panning');
+    if (stage.hasPointerCapture(pointer.id)) stage.releasePointerCapture(pointer.id);
+  }
   function resizeCanvas() {
     const width = canvas.clientWidth, height = canvas.clientHeight;
     if (!width || !height) return;
@@ -625,6 +633,7 @@
   }
   async function selectRecord(id) {
     const record = state.records.find(entry => entry.id === id); if (!record) return;
+    stopPan();
     state.stopComments?.(); state.stopComments = null;
     stopMedia(); state.active = record; state.draft = []; state.scratch = []; state.sketchMode = false; state.activeCommentId = null; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; resetView();
     localStorage.setItem(ACTIVE_KEY, id);
@@ -728,6 +737,7 @@
     } catch (error) { message.textContent = 'No se pudo guardar el enlace en este navegador.'; message.classList.add('is-error'); console.error(error); }
   }
   function clearViewer() {
+    stopPan();
     state.stopComments?.(); state.stopComments = null;
     stopMedia(); state.active = null; localStorage.removeItem(ACTIVE_KEY);
     $('#reviewsMediaTitle').textContent = 'Elegí un archivo'; $('#reviewsMediaTitle').removeAttribute('title');
@@ -1329,6 +1339,27 @@
   document.addEventListener('dragover', event => { if (!$('#reviewsView').hidden && event.dataTransfer?.types.includes('Files')) event.preventDefault(); });
   document.addEventListener('drop', event => { if (!$('#reviewsView').hidden && event.dataTransfer?.files?.length) { event.preventDefault(); showStatus('En Mira solo podés vincular archivos ya compartidos desde Dropbox.'); } });
   $('#reviewsStage').addEventListener('wheel', event => { if (!state.active || state.active.kind === 'model') return; event.preventDefault(); zoomAt(Math.exp(-event.deltaY * .002), event.clientX, event.clientY); }, { passive: false });
+  $('#reviewsStage').addEventListener('pointerdown', event => {
+    if (!state.active || state.active.kind === 'model' || event.button !== 1 || state.panPointer) return;
+    event.preventDefault();
+    state.panPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    $('#reviewsStage').classList.add('is-panning');
+    $('#reviewsStage').setPointerCapture(event.pointerId);
+  });
+  $('#reviewsStage').addEventListener('pointermove', event => {
+    const pan = state.panPointer;
+    if (!pan || pan.id !== event.pointerId) return;
+    event.preventDefault();
+    state.view.x += event.clientX - pan.x;
+    state.view.y += event.clientY - pan.y;
+    pan.x = event.clientX; pan.y = event.clientY;
+    applyView();
+  });
+  const endPan = event => { if (state.panPointer?.id === event.pointerId) stopPan(); };
+  $('#reviewsStage').addEventListener('pointerup', endPan);
+  $('#reviewsStage').addEventListener('pointercancel', endPan);
+  $('#reviewsStage').addEventListener('lostpointercapture', endPan);
+  $('#reviewsStage').addEventListener('auxclick', event => { if (event.button === 1 && state.active?.kind !== 'model') event.preventDefault(); });
   $('#reviewsStage').addEventListener('pointerdown', event => { if (!state.zHeld || !state.active || event.button !== 0) return; event.preventDefault(); state.zoomPointer = { id: event.pointerId, y: event.clientY, scale: state.view.scale, moved: false }; $('#reviewsStage').setPointerCapture(event.pointerId); });
   $('#reviewsStage').addEventListener('pointermove', event => { const drag = state.zoomPointer; if (!drag || drag.id !== event.pointerId) return; if (Math.abs(event.clientY - drag.y) > 3) drag.moved = true; if (drag.moved) zoomAt(Math.exp((drag.y - event.clientY) * .012) * drag.scale / state.view.scale, event.clientX, event.clientY); });
   const endZoom = event => { const drag = state.zoomPointer; if (!drag || drag.id !== event.pointerId) return; if (!drag.moved && event.type === 'pointerup') zoomAt(1.5, event.clientX, event.clientY); state.zoomPointer = null; if ($('#reviewsStage').hasPointerCapture(event.pointerId)) $('#reviewsStage').releasePointerCapture(event.pointerId); };
@@ -1351,7 +1382,7 @@
     else if (key === 'h') resetView();
   });
   document.addEventListener('keyup', event => { if (event.key.toLowerCase() === 'z') { state.zHeld = false; $('#reviewsStage').classList.remove('is-zooming'); } });
-  window.addEventListener('blur', () => { state.zHeld = false; $('#reviewsStage').classList.remove('is-zooming'); });
+  window.addEventListener('blur', () => { state.zHeld = false; $('#reviewsStage').classList.remove('is-zooming'); stopPan(); });
   function togglePlayback() { if (!video.paused) { video.pause(); return; } if (Number.isFinite(state.active?.inPoint) && (currentTime() < state.active.inPoint || (Number.isFinite(state.active.outPoint) && currentTime() >= state.active.outPoint))) video.currentTime = state.active.inPoint; video.play().catch(() => showStatus('Este navegador no puede reproducir el formato del video.')); }
   $('#reviewsPlayBtn').addEventListener('click', togglePlayback);
   $('#reviewsMuteBtn').addEventListener('click', () => { video.muted = !video.muted; updateClock(); });

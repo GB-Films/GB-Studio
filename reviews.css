@@ -153,6 +153,7 @@ body.legacy-public-review .reviews-view { grid-template-columns:minmax(0,1fr) mi
 @media (max-width:700px) { .studio-settings-content { padding:20px 14px; }.studio-people-panel { padding:16px 12px; }.studio-people-columns,.reviews-staff-row { grid-template-columns:minmax(130px,1.4fr) minmax(88px,.8fr) minmax(67px,.6fr) 12px; }.studio-people-columns span:nth-child(3),.reviews-staff-row>span:nth-child(3) { display:none; }.studio-person-fields,.studio-person-apps { grid-template-columns:1fr; }.studio-person-body,.studio-person-header,.studio-person-actions { padding-left:18px; padding-right:18px; }.studio-settings-current { display:none; } }
 .reviews-stage.is-zooming { cursor:zoom-in; }
 .reviews-stage.is-zooming .reviews-media-surface,.reviews-stage.is-zooming .reviews-media-surface canvas { cursor:zoom-in; }
+.reviews-stage.is-panning,.reviews-stage.is-panning .reviews-media-surface,.reviews-stage.is-panning .reviews-media-surface canvas { cursor:grabbing; }
 .reviews-view button { cursor:pointer; }
 .reviews-library,.reviews-comments { min-width:0; min-height:0; display:flex; flex-direction:column; background:#191919; }
 .reviews-library { border-right:1px solid #393939; }
