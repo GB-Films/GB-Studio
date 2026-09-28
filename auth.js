@@ -78,8 +78,8 @@ function updateProfile(user, access = null, pending = false) {
   if (profileModules) {
     profileModules.replaceChildren();
     const enabled = [];
-    if (access?.permissions?.storyboards) enabled.push('Mira');
-    if (access?.permissions?.reviewsView || access?.permissions?.reviewsClient) enabled.push('ViewSync');
+    if (access?.permissions?.storyboards) enabled.push('Visto');
+    if (access?.permissions?.reviewsView || access?.permissions?.reviewsClient) enabled.push('Mira');
     if (enabled.length) {
       const list = document.createElement('div'); list.className = 'profile-module-list';
       for (const moduleName of enabled) {
@@ -137,10 +137,10 @@ function renderSignedIn(user, access) {
   const canEnterReviews = access.permissions.reviewsView || access.permissions.reviewsClient;
   if (!publicReview && reviewsEntry && !canEnterReviews) {
     authGateButton.textContent = 'Cerrar sesión';
-    setAuthGate(true, 'No tenés acceso a ViewSync.', 'Pedile al administrador que habilite ViewSync para tu cuenta.');
+    setAuthGate(true, 'No tenés acceso a Mira.', 'Pedile al administrador que habilite Mira para tu cuenta.');
   } else if (!publicReview && !reviewsEntry && !homeEntry && !access.permissions.storyboards) {
     authGateButton.textContent = 'Cerrar sesión';
-    setAuthGate(true, 'No tenés acceso a Mira.', 'Pedile al administrador que habilite Mira para tu cuenta.');
+    setAuthGate(true, 'No tenés acceso a Visto.', 'Pedile al administrador que habilite Visto para tu cuenta.');
   } else {
     setAuthGate(false);
   }
