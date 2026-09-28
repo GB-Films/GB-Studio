@@ -1,6 +1,6 @@
 # GB Studio
 
-La [página principal de GB Studio](https://gb-films.github.io/StoryApp/) reúne los accesos a [Visto](https://gb-films.github.io/StoryApp/?app=storyboards) para organizar tomas y [Mira](https://gb-films.github.io/StoryApp/?app=reviews) para corregir fotos y videos. También presenta **PDR**, la futura herramienta de planes de rodaje, como «En proceso» sin acceso funcional. La cabecera permite volver al inicio o cambiar entre las herramientas habilitadas para la cuenta. Los enlaces de revisiones compartidos anteriormente siguen abriendo el visor. Las rutas internas conservan `storyboards` y `reviews` para no cortar los enlaces existentes.
+La [página principal de GB Studio](https://gb-films.github.io/GB-Studio/) reúne los accesos a [Visto](https://gb-films.github.io/GB-Studio/?app=storyboards) para organizar tomas y [Mira](https://gb-films.github.io/GB-Studio/?app=reviews) para corregir fotos y videos. También presenta **PDR**, la futura herramienta de planes de rodaje, como «En proceso» sin acceso funcional. La cabecera permite volver al inicio o cambiar entre las herramientas habilitadas para la cuenta. Los enlaces nuevos de revisiones usan la dirección `GB-Studio`. Los enlaces anteriores con `/StoryApp/` requieren reemplazar esa parte de la dirección por `/GB-Studio/`; GitHub Pages no redirige la dirección antigua. Las rutas internas conservan `storyboards` y `reviews` para mantener los parámetros de los enlaces.
 
 ## Mira
 
