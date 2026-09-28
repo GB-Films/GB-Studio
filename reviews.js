@@ -4,7 +4,7 @@
   const $ = selector => document.querySelector(selector);
   const DB_NAME = 'gb-studio-reviews-v1';
   const ACTIVE_KEY = 'gb-studio-reviews-active-v1';
-  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], activeCommentId: null, pointerId: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
+  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], activeCommentId: null, pointerId: null, shapeRawPoint: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
   const video = $('#reviewsVideo');
   const image = $('#reviewsImage');
   const canvas = $('#reviewsCanvas');
@@ -452,8 +452,8 @@
     const rect = canvas.getBoundingClientRect();
     return [Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))];
   }
-  function shapePoint(start, point, tool) {
-    if (tool !== 'square' && tool !== 'circle') return point;
+  function shapePoint(start, point, tool, shiftKey = false) {
+    if (!['rect', 'ellipse', 'square', 'circle'].includes(tool) || (!shiftKey && tool !== 'square' && tool !== 'circle')) return point;
     const dx = (point[0] - start[0]) * canvas.clientWidth, dy = (point[1] - start[1]) * canvas.clientHeight;
     const side = Math.min(Math.abs(dx), Math.abs(dy));
     return [start[0] + Math.sign(dx) * side / canvas.clientWidth, start[1] + Math.sign(dy) * side / canvas.clientHeight];
@@ -623,7 +623,7 @@
   async function selectRecord(id) {
     const record = state.records.find(entry => entry.id === id); if (!record) return;
     state.stopComments?.(); state.stopComments = null;
-    stopMedia(); state.active = record; state.draft = []; state.scratch = []; state.sketchMode = false; state.activeCommentId = null; state.drawing = false; resetView();
+    stopMedia(); state.active = record; state.draft = []; state.scratch = []; state.sketchMode = false; state.activeCommentId = null; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; resetView();
     localStorage.setItem(ACTIVE_KEY, id);
     renderList(); renderCommentList();
     $('#reviewsMediaTitle').textContent = record.name;
@@ -685,7 +685,7 @@
     const comment = state.active?.comments.find(entry => entry.id === id); if (!comment) return;
     video.pause();
     if (isVideo()) video.currentTime = Math.min(comment.time, Number.isFinite(video.duration) ? video.duration : comment.time);
-    state.activeCommentId = id; state.draft = []; state.scratch = []; state.sketchMode = false; state.drawing = false;
+    state.activeCommentId = id; state.draft = []; state.scratch = []; state.sketchMode = false; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null;
     canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false');
     renderCommentList(); redraw(); updateClock();
   }
@@ -1357,7 +1357,7 @@
   video.addEventListener('loadedmetadata', () => { $('#reviewsMediaSurface').style.setProperty('--review-aspect', String((video.videoWidth || 16) / (video.videoHeight || 9))); renderPlaybackSettings(); renderMarkers(); fitSurface(); });
   image.addEventListener('load', () => { $('#reviewsMediaSurface').style.setProperty('--review-aspect', String((image.naturalWidth || 16) / (image.naturalHeight || 9))); fitSurface(); });
   video.addEventListener('timeupdate', () => { if (!video.paused && Number.isFinite(state.active?.outPoint) && currentTime() >= state.active.outPoint) { video.pause(); video.currentTime = state.active.outPoint; } updateClock(); });
-  video.addEventListener('play', () => { state.activeCommentId = null; state.scratch = []; state.sketchMode = false; state.drawing = false; canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false'); redraw(); renderCommentList(); updateClock(); });
+  video.addEventListener('play', () => { state.activeCommentId = null; state.scratch = []; state.sketchMode = false; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false'); redraw(); renderCommentList(); updateClock(); });
   video.addEventListener('pause', updateClock);
   const mediaError = () => { if (state.active?.source === 'dropbox') { $('#reviewsMediaError').hidden = false; showStatus('No se pudo abrir el enlace de Dropbox. Revisá el acceso y el formato del archivo.'); } else showStatus('El formato no se puede reproducir en este navegador. Probá con MP4 (H.264), WebM o una foto compatible.'); };
   video.addEventListener('error', mediaError);
@@ -1369,48 +1369,70 @@
     $('#reviewsSketchBtn').classList.toggle('is-active', state.sketchMode);
     $('#reviewsSketchBtn').setAttribute('aria-pressed', String(state.sketchMode));
   }
-  function closeToolMenu() { $('#reviewsToolMenu').hidden = true; $('#reviewsToolPicker').setAttribute('aria-expanded', 'false'); }
-  function positionToolMenu() {
-    const menu = $('#reviewsToolMenu');
-    if (menu.hidden) return;
-    menu.style.transform = '';
-    const rect = menu.getBoundingClientRect();
-    const shift = rect.left < 12 ? 12 - rect.left : rect.right > window.innerWidth - 12 ? window.innerWidth - 12 - rect.right : 0;
-    menu.style.transform = `translateX(${shift}px)`;
+  function closeToolMenus() {
+    document.querySelectorAll('.reviews-tool-picker').forEach(group => {
+      group.querySelector('.reviews-tool-menu').hidden = true;
+      group.querySelector('.reviews-tool-picker-button').setAttribute('aria-expanded', 'false');
+    });
   }
-  $('#reviewsToolPicker').addEventListener('click', () => {
-    const menu = $('#reviewsToolMenu'); menu.hidden = !menu.hidden;
-    $('#reviewsToolPicker').setAttribute('aria-expanded', String(!menu.hidden));
-    positionToolMenu();
-  });
-  window.addEventListener('resize', positionToolMenu);
-  $('#reviewsToolMenu').addEventListener('click', event => {
+  function positionToolMenus() {
+    document.querySelectorAll('.reviews-tool-menu:not([hidden])').forEach(menu => {
+      menu.style.transform = '';
+      const rect = menu.getBoundingClientRect();
+      const shift = rect.left < 12 ? 12 - rect.left : rect.right > innerWidth - 12 ? innerWidth - 12 - rect.right : 0;
+      menu.style.transform = `translateX(${shift}px)`;
+    });
+  }
+  document.querySelectorAll('.reviews-tool-picker-button').forEach(picker => picker.addEventListener('click', () => {
+    const menu = picker.parentElement.querySelector('.reviews-tool-menu'), opening = menu.hidden;
+    closeToolMenus(); menu.hidden = !opening; picker.setAttribute('aria-expanded', String(opening));
+    positionToolMenus();
+  }));
+  window.addEventListener('resize', positionToolMenus);
+  document.querySelectorAll('.reviews-tool-menu').forEach(menu => menu.addEventListener('click', event => {
     const button = event.target.closest('[data-review-tool]');
     if (!button || !state.active) return;
     state.tool = button.dataset.reviewTool;
-    const label = button.lastChild.textContent.trim();
-    $('#reviewsToolPicker').firstChild.textContent = `${button.querySelector('span').textContent} ${label} `;
-    $('#reviewsToolPicker').setAttribute('aria-label', `Herramienta: ${label}`);
+    const label = button.querySelector('.reviews-tool-name').textContent;
+    const group = button.closest('.reviews-tool-picker');
+    const picker = group.querySelector('.reviews-tool-picker-button');
+    picker.querySelector('.reviews-picker-label').textContent = `${button.querySelector('span').textContent} ${label}`;
+    picker.setAttribute('aria-label', `${group.dataset.toolGroup === 'brush' ? 'Pincel' : 'Forma'}: ${label}`);
     document.querySelectorAll('[data-review-tool]').forEach(option => option.setAttribute('aria-pressed', String(option === button)));
-    closeToolMenu(); video.pause(); state.activeCommentId = null;
+    document.querySelectorAll('.reviews-tool-picker').forEach(entry => {
+      const active = entry === group;
+      entry.querySelector('.reviews-tool-picker-button').classList.toggle('is-active', active);
+      entry.querySelector('.reviews-tool-picker-button').setAttribute('aria-pressed', String(active));
+    });
+    closeToolMenus(); video.pause(); state.activeCommentId = null;
     state.drawing = true; syncDrawingControls(); redraw();
-  });
-  document.addEventListener('pointerdown', event => { if (!event.target.closest('.reviews-tool-picker')) closeToolMenu(); });
-  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeToolMenu(); });
+  }));
+  document.addEventListener('pointerdown', event => { if (!event.target.closest('.reviews-tool-picker')) closeToolMenus(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeToolMenus(); });
   $('#reviewsDrawBtn').addEventListener('click', () => { if (!state.active) return; video.pause(); state.activeCommentId = null; state.drawing = state.sketchMode || !state.drawing; state.sketchMode = false; syncDrawingControls(); redraw(); });
   $('#reviewsSketchBtn').addEventListener('click', () => { if (!state.active) return; video.pause(); state.activeCommentId = null; state.sketchMode = !state.sketchMode; state.drawing = state.sketchMode; syncDrawingControls(); redraw(); });
   $('#reviewsUndoBtn').addEventListener('click', () => { (state.sketchMode ? state.scratch : state.draft).pop(); redraw(); });
   $('#reviewsClearBtn').addEventListener('click', clearAnnotation);
-  canvas.addEventListener('pointerdown', event => { if (!state.drawing || !state.active || state.zHeld || event.button !== 0) return; event.preventDefault(); state.activeCommentId = null; state.pointerId = event.pointerId; canvas.setPointerCapture(event.pointerId); (state.sketchMode ? state.scratch : state.draft).push({ tool: state.tool, color: $('#reviewsColor').value, points: [pointerPoint(event)] }); redraw(); });
+  canvas.addEventListener('pointerdown', event => { if (!state.drawing || !state.active || state.zHeld || event.button !== 0) return; event.preventDefault(); state.activeCommentId = null; state.pointerId = event.pointerId; state.shapeRawPoint = pointerPoint(event); canvas.setPointerCapture(event.pointerId); (state.sketchMode ? state.scratch : state.draft).push({ tool: state.tool, color: $('#reviewsColor').value, points: [state.shapeRawPoint] }); redraw(); });
+  function updateActiveShape(point, shiftKey) {
+    const stroke = (state.sketchMode ? state.scratch : state.draft).at(-1);
+    if (!stroke || !['line', 'arrow', 'rect', 'ellipse', 'square', 'circle'].includes(stroke.tool)) return false;
+    state.shapeRawPoint = point;
+    stroke.points[1] = shapePoint(stroke.points[0], point, stroke.tool, shiftKey);
+    redraw();
+    return true;
+  }
   canvas.addEventListener('pointermove', event => {
     const strokes = state.sketchMode ? state.scratch : state.draft;
     if (state.pointerId !== event.pointerId || !strokes.length) return;
-    const stroke = strokes.at(-1), point = shapePoint(stroke.points[0], pointerPoint(event), stroke.tool);
-    if (['line', 'arrow', 'rect', 'square', 'circle', 'ellipse'].includes(stroke.tool)) { stroke.points[1] = point; redraw(); return; }
+    const stroke = strokes.at(-1), point = pointerPoint(event);
+    if (updateActiveShape(point, event.shiftKey)) return;
     const last = stroke.points.at(-1);
     if (Math.hypot((point[0] - last[0]) * canvas.clientWidth, (point[1] - last[1]) * canvas.clientHeight) > 2) { stroke.points.push(point); redraw(); }
   });
-  const endStroke = event => { if (state.pointerId !== event.pointerId) return; state.pointerId = null; if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); };
+  document.addEventListener('keydown', event => { if (event.key === 'Shift' && state.pointerId !== null && state.shapeRawPoint) updateActiveShape(state.shapeRawPoint, true); });
+  document.addEventListener('keyup', event => { if (event.key === 'Shift' && state.pointerId !== null && state.shapeRawPoint) updateActiveShape(state.shapeRawPoint, false); });
+  const endStroke = event => { if (state.pointerId !== event.pointerId) return; if (event.type === 'pointerup') updateActiveShape(pointerPoint(event), event.shiftKey); state.pointerId = null; state.shapeRawPoint = null; if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); };
   canvas.addEventListener('pointerup', endStroke); canvas.addEventListener('pointercancel', endStroke);
   $('#reviewsCommentForm').addEventListener('submit', async event => {
     event.preventDefault(); if (!state.active || state.saving || !canComment()) return;
