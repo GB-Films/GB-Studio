@@ -4,6 +4,8 @@ const PROJECTS_KEY = 'storyboard-studio-projects-v1';
 const CURRENT_PROJECT_KEY = 'storyboard-studio-current-project-v1';
 const PROJECT_SORT_KEY = 'storyboard-studio-project-sort-v1';
 const INDEXED_DB_NAME = 'gb-studio-workspace-v1';
+const VISTO_CLOUD_MIGRATED_KEY = 'gb-studio-visto-cloud-migrated-v1';
+const VISTO_PENDING_UPLOADS_KEY = 'gb-studio-visto-pending-uploads-v1';
 const MIN_CANVAS_PADDING = 6;
 const PHOTO_INFO_OVERLAY_HEIGHT = 18;
 
@@ -367,6 +369,94 @@ function loadProjects() {
   return legacy ? [normalizeProject(legacy)] : [];
 }
 
+function canEditVisto() { return window.STUDIO_PERMISSIONS?.storyboards === true; }
+function canViewVisto() { return canEditVisto() || window.STUDIO_PERMISSIONS?.storyboardsView === true; }
+const cloudProjectTimers = new Map();
+const cloudProjectWrites = new Map();
+let cloudLoadGeneration = 0;
+function pendingCloudIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(VISTO_PENDING_UPLOADS_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+function setCloudPending(id, pending) {
+  const ids = pendingCloudIds();
+  if (pending) ids.add(id); else ids.delete(id);
+  try { localStorage.setItem(VISTO_PENDING_UPLOADS_KEY, JSON.stringify([...ids])); }
+  catch { /* Shared saves still run when browser storage is unavailable. */ }
+}
+function queueCloudProject(candidate) {
+  if (!canEditVisto() || !window.STUDIO_CLOUD?.saveStoryboardProject) return;
+  setCloudPending(candidate.id, true);
+  clearTimeout(cloudProjectTimers.get(candidate.id));
+  cloudProjectTimers.set(candidate.id, setTimeout(() => {
+    cloudProjectTimers.delete(candidate.id);
+    const snapshot = JSON.parse(JSON.stringify(candidate));
+    const previous = cloudProjectWrites.get(candidate.id) || Promise.resolve();
+    const write = previous.catch(() => {}).then(() => window.STUDIO_CLOUD.saveStoryboardProject(snapshot));
+    cloudProjectWrites.set(candidate.id, write);
+    write.then(() => { if (!cloudProjectTimers.has(candidate.id) && cloudProjectWrites.get(candidate.id) === write) setCloudPending(candidate.id, false); }, () => {});
+    write.catch(error => { console.error('Could not share Visto project', error); showToast('No se pudo compartir el proyecto. Revisá la conexión.'); });
+  }, 1200));
+}
+function removeCloudProject(id) {
+  if (!canEditVisto() || !window.STUDIO_CLOUD?.deleteStoryboardProject) return;
+  clearTimeout(cloudProjectTimers.get(id));
+  cloudProjectTimers.delete(id);
+  setCloudPending(id, false);
+  const previous = cloudProjectWrites.get(id) || Promise.resolve();
+  previous.catch(() => {}).then(() => window.STUDIO_CLOUD.deleteStoryboardProject(id)).catch(error => {
+    console.error('Could not delete shared Visto project', error);
+    showToast('No se pudo eliminar el proyecto compartido.');
+  });
+}
+async function loadSharedStoryboards() {
+  if (!canViewVisto() || !window.STUDIO_CLOUD?.listStoryboardProjects) return;
+  const generation = ++cloudLoadGeneration;
+  try {
+    const shared = (await window.STUDIO_CLOUD.listStoryboardProjects()).map(normalizeProject);
+    if (generation !== cloudLoadGeneration || !canViewVisto()) return;
+    if (canEditVisto()) {
+      const migrating = localStorage.getItem(VISTO_CLOUD_MIGRATED_KEY) !== 'true';
+      const pending = pendingCloudIds();
+      const migrationUploads = [];
+      const remoteById = new Map(shared.map(entry => [entry.id, entry]));
+      const combined = [...shared];
+      for (const local of projects) {
+        const remote = remoteById.get(local.id);
+        if (!remote) {
+          if (migrating || pending.has(local.id)) {
+            combined.push(local);
+            setCloudPending(local.id, true);
+            const previous = cloudProjectWrites.get(local.id) || Promise.resolve();
+            const upload = previous.catch(() => {}).then(() => window.STUDIO_CLOUD.saveStoryboardProject(JSON.parse(JSON.stringify(local))));
+            cloudProjectWrites.set(local.id, upload);
+            upload.then(() => { if (!cloudProjectTimers.has(local.id) && cloudProjectWrites.get(local.id) === upload) setCloudPending(local.id, false); }, () => {});
+            migrationUploads.push(upload);
+          }
+        } else if (pending.has(local.id) || new Date(local.updatedAt || 0) > new Date(remote.updatedAt || 0)) {
+          combined[combined.findIndex(entry => entry.id === local.id)] = local;
+          queueCloudProject(local);
+        }
+      }
+      projects = combined;
+      persistProjects(false);
+      if (migrating) Promise.all(migrationUploads).then(() => localStorage.setItem(VISTO_CLOUD_MIGRATED_KEY, 'true')).catch(error => {
+        console.error('Could not migrate local Visto projects', error);
+        showToast('Algunos proyectos no se pudieron compartir. Revisá la conexión.');
+      });
+    } else projects = shared;
+    if (project) {
+      const refreshed = projects.find(entry => entry.id === project.id);
+      if (refreshed) { project = refreshed; currentPageIndex = Math.min(currentPageIndex, project.pages.length - 1); render(); }
+      else showDashboard();
+    }
+    if (!$('#dashboardView').hidden) renderDashboard();
+  } catch (error) {
+    console.error('Could not load shared Visto projects', error);
+    if (generation === cloudLoadGeneration) showToast('No se pudieron cargar los proyectos compartidos.');
+  }
+}
+
 function projectHasContent(candidate = project) { return !!candidate && (candidate.assets.length > 0 || candidate.pages.some(page => page.items.length > 0)); }
 function projectFormatLabel(ratio) { return ratio === 'portrait' ? 'Vertical · 9:16' : ratio === 'square' ? 'Cuadrado · 1:1' : 'Horizontal · 16:9'; }
 function projectDateLabel(value) { const date = new Date(value || Date.now()); return Number.isNaN(date.getTime()) ? 'Sin fecha' : date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }); }
@@ -395,9 +485,10 @@ function findAsset(id) { return project.assets.find(asset => asset.id === id); }
 function placedAssetIds() { return new Set(project.pages.flatMap(page => page.items.map(item => item.assetId))); }
 
 function saveProject() {
-  if (!window.STUDIO_PERMISSIONS?.storyboards) return;
+  if (!canEditVisto()) return;
   if (!project) return;
   const candidate = project;
+  setCloudPending(candidate.id, true);
   candidate.updatedAt = new Date().toISOString();
   const index = projects.findIndex(entry => entry.id === candidate.id);
   if (index === -1) projects.unshift(candidate);
@@ -415,6 +506,7 @@ function saveProject() {
     } catch {
       writeIndexedDbSnapshot();
     }
+    queueCloudProject(candidate);
   }, 320);
 }
 
@@ -431,9 +523,10 @@ window.addEventListener('pagehide', () => {
   } catch { writeIndexedDbSnapshot(); }
 });
 
-function persistProjects() {
-  if (!window.STUDIO_PERMISSIONS?.storyboards) return;
+function persistProjects(syncCloud = true) {
+  if (!canEditVisto()) return;
   try { localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects)); writeIndexedDbSnapshot(); } catch { writeIndexedDbSnapshot(); }
+  if (syncCloud) projects.forEach(queueCloudProject);
 }
 
 function openIndexedDb(callback) {
@@ -456,8 +549,8 @@ function writeIndexedDbSnapshot() {
   });
 }
 
-function hydrateProjectsFromIndexedDb() {
-  if (!window.STUDIO_PERMISSIONS?.storyboards || indexedDbHydrationStarted) return;
+function hydrateProjectsFromIndexedDb(callback = () => {}) {
+  if (!canEditVisto() || indexedDbHydrationStarted) { callback(); return; }
   indexedDbHydrationStarted = true;
   openIndexedDb(db => {
     try {
@@ -466,15 +559,17 @@ function hydrateProjectsFromIndexedDb() {
         const saved = request.result;
         const localUpdatedAt = projects.reduce((latest, entry) => Math.max(latest, new Date(entry.updatedAt || 0).getTime()), 0);
         const databaseUpdatedAt = new Date(saved?.updatedAt || 0).getTime();
-        if (window.STUDIO_PERMISSIONS?.storyboards && Array.isArray(saved?.projects) && saved.projects.length && databaseUpdatedAt >= localUpdatedAt) {
+        if (canEditVisto() && Array.isArray(saved?.projects) && saved.projects.length && databaseUpdatedAt >= localUpdatedAt) {
           projects = saved.projects.map(normalizeProject);
           renderDashboard();
         }
         db.close();
+        callback();
       };
-      request.onerror = () => db.close();
-    } catch { db.close(); }
+      request.onerror = () => { db.close(); callback(); };
+    } catch { db.close(); callback(); }
   });
+  if (!('indexedDB' in window)) callback();
 }
 
 function showToast(message) {
@@ -604,7 +699,7 @@ function renderDashboard() {
     const projectDetailsMarkup = projectDetails.length ? `<div class="project-card-details">${projectDetails.map(([label, value]) => `<span><small>${label}</small><strong>${escapeHtml(value)}</strong></span>`).join('')}</div>` : '';
     const editIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5-.7 3.7 3.7-.7L18.5 8a2.5 2.5 0 0 0-3.5-3.5L4 16.5Zm9.5-9.5 4 4" /></svg>';
     const deleteIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h8l1-13M10 11v6m4-6v6" /></svg>';
-    return `<article class="project-card" style="--card-index:${index}"><div class="project-card-open" data-open-project="${entry.id}" role="button" tabindex="0"><span class="project-card-preview ${asset ? '' : 'is-empty'}">${preview}<span class="project-card-format">${projectFormatLabel(entry.ratio)}</span></span><span class="project-card-body"><span class="project-card-title-slot"><strong class="project-card-name">${escapeHtml(entry.title || 'Sin título')}</strong><input id="dashboard-title-${entry.id}" class="project-card-title-input" data-project-title="${entry.id}" value="${escapeHtml(entry.title || '')}" placeholder="Título del proyecto" autocomplete="off" hidden /></span>${projectDetailsMarkup}<span class="project-card-meta"><span>${pageCount} página${pageCount === 1 ? '' : 's'}</span><span>${photoCount} foto${photoCount === 1 ? '' : 's'}</span><span>${projectDateLabel(entry.updatedAt)}</span></span></span></div><div class="project-card-actions"><button class="project-card-action project-card-edit" data-edit-project="${entry.id}" type="button" aria-label="Editar nombre del proyecto" title="Editar nombre">${editIcon}</button><button class="project-card-action project-card-delete" data-delete-project="${entry.id}" type="button" aria-label="Eliminar proyecto y sus versiones" title="Eliminar proyecto y sus versiones">${deleteIcon}</button></div></article>`;
+    return `<article class="project-card" style="--card-index:${index}"><div class="project-card-open" data-open-project="${entry.id}" role="button" tabindex="0"><span class="project-card-preview ${asset ? '' : 'is-empty'}">${preview}<span class="project-card-format">${projectFormatLabel(entry.ratio)}</span></span><span class="project-card-body"><span class="project-card-title-slot"><strong class="project-card-name">${escapeHtml(entry.title || 'Sin título')}</strong>${canEditVisto() ? `<input id="dashboard-title-${entry.id}" class="project-card-title-input" data-project-title="${entry.id}" value="${escapeHtml(entry.title || '')}" placeholder="Título del proyecto" autocomplete="off" hidden />` : ''}</span>${projectDetailsMarkup}<span class="project-card-meta"><span>${pageCount} página${pageCount === 1 ? '' : 's'}</span><span>${photoCount} foto${photoCount === 1 ? '' : 's'}</span><span>${projectDateLabel(entry.updatedAt)}</span></span></span></div>${canEditVisto() ? `<div class="project-card-actions"><button class="project-card-action project-card-edit" data-edit-project="${entry.id}" type="button" aria-label="Editar nombre del proyecto" title="Editar nombre">${editIcon}</button><button class="project-card-action project-card-delete" data-delete-project="${entry.id}" type="button" aria-label="Eliminar proyecto y sus versiones" title="Eliminar proyecto y sus versiones">${deleteIcon}</button></div>` : ''}</article>`;
   }).join('');
   $$('[data-open-project]', grid).forEach(card => {
     const open = () => { if (!card.classList.contains('is-editing')) openProject(card.dataset.openProject); };
@@ -666,7 +761,7 @@ function renderVersionManager() {
   const list = $('#versionManagerList');
   if (!list || !project) return;
   const versions = projectVersions();
-  list.innerHTML = versions.map((version, index) => `<div class="version-manager-row${version.id === project.id ? ' is-current' : ''}" data-version-row="${version.id}"><div class="version-manager-mark">${String(index + 1).padStart(2, '0')}</div><div class="version-manager-copy"><input class="version-manager-name" data-version-name="${version.id}" value="${escapeHtml(version.versionName || 'Base')}" aria-label="Nombre de la versión" /><small>${projectFormatLabel(version.ratio)} · ${version.pages.length} página${version.pages.length === 1 ? '' : 's'} · ${version.assets.length} foto${version.assets.length === 1 ? '' : 's'}</small></div><button class="button button-ghost button-small" data-open-version="${version.id}" type="button">Abrir</button><button class="button button-danger button-small" data-delete-version="${version.id}" type="button"${versions.length === 1 ? ' disabled' : ''}>Eliminar</button></div>`).join('');
+  list.innerHTML = versions.map((version, index) => `<div class="version-manager-row${version.id === project.id ? ' is-current' : ''}" data-version-row="${version.id}"><div class="version-manager-mark">${String(index + 1).padStart(2, '0')}</div><div class="version-manager-copy">${canEditVisto() ? `<input class="version-manager-name" data-version-name="${version.id}" value="${escapeHtml(version.versionName || 'Base')}" aria-label="Nombre de la versión" />` : `<strong>${escapeHtml(version.versionName || 'Base')}</strong>`}<small>${projectFormatLabel(version.ratio)} · ${version.pages.length} página${version.pages.length === 1 ? '' : 's'} · ${version.assets.length} foto${version.assets.length === 1 ? '' : 's'}</small></div><button class="button button-ghost button-small" data-open-version="${version.id}" type="button">Abrir</button>${canEditVisto() ? `<button class="button button-danger button-small" data-delete-version="${version.id}" type="button"${versions.length === 1 ? ' disabled' : ''}>Eliminar</button>` : ''}</div>`).join('');
   $$('[data-version-name]', list).forEach(input => input.addEventListener('change', event => {
     const entry = projects.find(candidate => candidate.id === event.target.dataset.versionName);
     if (!entry) return;
@@ -694,12 +789,14 @@ function openDeleteVersionModal(id) {
 }
 function closeDeleteVersionModal() { pendingDeleteVersionId = null; $('#deleteVersionModal').hidden = true; }
 function confirmDeleteVersion() {
+  if (!canEditVisto()) return;
   if (!pendingDeleteVersionId) return;
   const entry = projects.find(candidate => candidate.id === pendingDeleteVersionId);
   const groupId = entry?.versionGroupId || pendingDeleteVersionId;
   const versions = projectVersions(groupId);
   if (!entry || versions.length <= 1) { closeDeleteVersionModal(); return; }
   const fallback = versions.find(candidate => candidate.id !== entry.id);
+  removeCloudProject(entry.id);
   projects = projects.filter(candidate => candidate.id !== entry.id);
   persistProjects();
   closeDeleteVersionModal();
@@ -713,8 +810,7 @@ function confirmDeleteVersion() {
 }
 
 function showDashboard() {
-  if (!window.STUDIO_PERMISSIONS?.storyboards) return false;
-  if (project) saveProject();
+  if (!canViewVisto()) return false;
   project = null;
   lastUndoState = null;
   closeDeletePageConfirm();
@@ -740,7 +836,7 @@ function showDashboard() {
 }
 
 function showEditor() {
-  if (!window.STUDIO_PERMISSIONS?.storyboards) return false;
+  if (!canViewVisto()) return false;
   $('#dashboardView').hidden = true;
   $('#editorView').hidden = false;
   $('#reviewsView').hidden = true;
@@ -752,14 +848,15 @@ function showEditor() {
   $('#reviewsNav').classList.remove('is-active');
   $('#backToDashboardBtn').hidden = false;
   $('#manageVersionsBtn').hidden = false;
-  $('#createVersionBtn').hidden = false;
-  $('#exportBtn').hidden = false;
+  $('#createVersionBtn').hidden = !canEditVisto();
+  $('#exportBtn').hidden = !canEditVisto();
   $('#breadcrumbTitle').textContent = project?.title || 'Sin título';
-  queueMicrotask(optimizeCurrentBackgroundImage);
+  if (canEditVisto()) queueMicrotask(optimizeCurrentBackgroundImage);
   return true;
 }
 
 function openDeleteProjectModal(id) {
+  if (!canEditVisto()) return;
   const entry = projects.find(candidate => candidate.id === id);
   if (!entry) return;
   pendingDeleteProjectId = id;
@@ -768,9 +865,11 @@ function openDeleteProjectModal(id) {
 }
 function closeDeleteProjectModal() { pendingDeleteProjectId = null; $('#deleteProjectModal').hidden = true; }
 function confirmDeleteProject() {
+  if (!canEditVisto()) return;
   if (!pendingDeleteProjectId) return;
   const entry = projects.find(candidate => candidate.id === pendingDeleteProjectId);
   const groupId = entry?.versionGroupId || pendingDeleteProjectId;
+  projects.filter(candidate => (candidate.versionGroupId || candidate.id) === groupId).forEach(candidate => removeCloudProject(candidate.id));
   projects = projects.filter(candidate => (candidate.versionGroupId || candidate.id) !== groupId);
   persistProjects();
   if (entry && (project?.versionGroupId || currentProjectId) === groupId) { project = null; currentProjectId = null; }
@@ -780,7 +879,7 @@ function confirmDeleteProject() {
 }
 
 function openProject(id) {
-  if (!window.STUDIO_PERMISSIONS?.storyboards) return;
+  if (!canViewVisto()) return;
   const stored = projects.find(entry => entry.id === id);
   if (!stored) return;
   project = normalizeProject(stored);
@@ -792,7 +891,7 @@ function openProject(id) {
   localStorage.setItem(CURRENT_PROJECT_KEY, project.id);
   showEditor();
   render();
-  if (!project.formatLocked) openFormatModal();
+  if (canEditVisto() && !project.formatLocked) openFormatModal();
 }
 function itemLayout(item, page = currentPage()) {
   return pageLayout(page)[page.items.indexOf(item)];
@@ -939,6 +1038,16 @@ function renderPage() {
   const content = page?.items.length ? page.items.map(item => itemMarkup(item, page)).join('') : '<div class="empty-page"><div><span>▱</span><strong>Tu artboard está vacío</strong><small>Arrastrá una foto desde la biblioteca</small></div></div>';
   $('#canvasPage').innerHTML = guides + content + storyboardMetaMarkup();
   applyArtboardBackground($('#canvasPage'));
+  if (!canEditVisto()) {
+    $$('.description-editor').forEach(editor => editor.removeAttribute('contenteditable'));
+    $('#pageNumber').textContent = currentPageIndex + 1;
+    $('#pageTotal').textContent = project.pages.length;
+    $('#prevPageBtn').disabled = currentPageIndex === 0;
+    $('#nextPageBtn').disabled = currentPageIndex >= project.pages.length - 1;
+    renderPageCarousel();
+    requestAnimationFrame(fitCanvasPage);
+    return;
+  }
   $$('.design-item').forEach(item => bindDesignItem(item));
   $$('[data-camera-overlay]').forEach(overlay => bindCameraOverlay(overlay));
   $$('[data-drawing-layer]').forEach(layer => bindDrawingLayer(layer));
@@ -1078,10 +1187,10 @@ function renderPageCarousel() {
   const track = $('#pageCarouselTrack');
   if (!track) return;
   $('#carouselCount').textContent = `${project.pages.length} página${project.pages.length === 1 ? '' : 's'}`;
-  track.innerHTML = `${project.pages.map((page, index) => `<div class="page-thumb-wrap"><button class="page-thumb ${index === currentPageIndex ? 'is-active' : ''}" data-page-index="${index}" type="button"><span class="page-thumb-canvas ${pageFormatClass()}">${pageThumbnailMarkup(page)}</span><span class="page-thumb-label">${String(index + 1).padStart(2, '0')} · ${escapeHtml(page.title || `Página ${index + 1}`)}</span></button><button class="page-thumb-menu-button" data-page-menu type="button" aria-label="Opciones de ${escapeHtml(page.title || `Página ${index + 1}`)}" title="Opciones">⋯</button><div class="page-thumb-menu" role="menu"><button data-copy-page="${index}" type="button" role="menuitem">Duplicar</button><button data-export-page-png="${index}" type="button" role="menuitem">Exportar rápido como PNG</button><button data-delete-page-menu="${index}" type="button" role="menuitem" ${project.pages.length <= 1 ? 'disabled' : ''}>Eliminar</button></div></div>`).join('')}<button class="page-thumb page-thumb-add" data-add-page type="button" aria-label="Agregar nueva página"><span class="page-thumb-canvas page-thumb-add-canvas ${pageFormatClass()}"><span class="page-thumb-add-symbol">＋</span></span><span class="page-thumb-label">＋ Nueva página</span></button>`;
+  track.innerHTML = `${project.pages.map((page, index) => `<div class="page-thumb-wrap"><button class="page-thumb ${index === currentPageIndex ? 'is-active' : ''}" data-page-index="${index}" type="button"><span class="page-thumb-canvas ${pageFormatClass()}">${pageThumbnailMarkup(page)}</span><span class="page-thumb-label">${String(index + 1).padStart(2, '0')} · ${escapeHtml(page.title || `Página ${index + 1}`)}</span></button>${canEditVisto() ? `<button class="page-thumb-menu-button" data-page-menu type="button" aria-label="Opciones de ${escapeHtml(page.title || `Página ${index + 1}`)}" title="Opciones">⋯</button><div class="page-thumb-menu" role="menu"><button data-copy-page="${index}" type="button" role="menuitem">Duplicar</button><button data-export-page-png="${index}" type="button" role="menuitem">Exportar rápido como PNG</button><button data-delete-page-menu="${index}" type="button" role="menuitem" ${project.pages.length <= 1 ? ' disabled' : ''}>Eliminar</button></div>` : ''}</div>`).join('')}${canEditVisto() ? `<button class="page-thumb page-thumb-add" data-add-page type="button" aria-label="Agregar nueva página"><span class="page-thumb-canvas page-thumb-add-canvas ${pageFormatClass()}"><span class="page-thumb-add-symbol">＋</span></span><span class="page-thumb-label">＋ Nueva página</span></button>` : ''}`;
   $$('.page-thumb-canvas:not(.page-thumb-add-canvas)', track).forEach(applyArtboardBackground);
   $$('[data-page-index]', track).forEach(button => {
-    button.addEventListener('pointerdown', event => { if (event.altKey) startPageDuplicateDrag(Number(button.dataset.pageIndex), event, track); });
+    button.addEventListener('pointerdown', event => { if (canEditVisto() && event.altKey) startPageDuplicateDrag(Number(button.dataset.pageIndex), event, track); });
     button.addEventListener('click', () => { if (document.body.classList.contains('is-page-dragging')) return; currentPageIndex = Number(button.dataset.pageIndex); selectedItemId = null; activeInspector = 'page'; render(); });
   });
   $$('[data-page-menu]', track).forEach(button => button.addEventListener('click', event => { event.stopPropagation(); const wrapper = button.closest('.page-thumb-wrap'); const menu = wrapper.querySelector('.page-thumb-menu'); const wasOpen = wrapper.classList.contains('is-menu-open'); closePageMenus(); if (!wasOpen) { const rect = button.getBoundingClientRect(); wrapper.classList.add('is-menu-open'); menu.style.left = '0px'; menu.style.top = '0px'; const origin = menu.getBoundingClientRect(); const menuHeight = origin.height; const opensUp = window.innerHeight - rect.bottom < menuHeight + 10; const desiredLeft = Math.max(6, Math.min(window.innerWidth - 210, rect.right - 202)); const desiredTop = opensUp ? Math.max(6, rect.top - menuHeight - 4) : Math.min(window.innerHeight - menuHeight - 6, rect.bottom + 4); menu.classList.toggle('opens-up', opensUp); menu.style.left = `${desiredLeft - origin.left}px`; menu.style.top = `${desiredTop - origin.top}px`; } }));
@@ -2253,7 +2362,7 @@ $('#deletePhotoBtn').addEventListener('click', deleteSelected); $('#duplicatePho
 $('#dashboardCreateBtn').addEventListener('click', resetProject);
 $('#dashboardEmptyCreateBtn').addEventListener('click', resetProject);
 $('#storyboardsNav').addEventListener('click', () => {
-  if (!window.STUDIO_PERMISSIONS?.storyboards) return;
+  if (!canViewVisto()) return;
   if (document.documentElement.dataset.studioApp === 'storyboards') showDashboard();
   else window.location.assign('?app=storyboards');
 });
@@ -2299,6 +2408,10 @@ $$('[data-export]').forEach(button => button.addEventListener('click', async () 
 document.addEventListener('click', event => { if (!event.target.closest('.page-thumb-wrap')) closePageMenus(); });
 window.addEventListener('resize', () => requestAnimationFrame(fitCanvasPage));
 document.addEventListener('keydown', event => {
+  if (!canEditVisto()) {
+    if (event.key === 'Escape') closeVersionsModal();
+    return;
+  }
   const editing = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); saveProject(); showToast('Proyecto guardado'); }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && !editing && project && !$('#editorView').hidden) { event.preventDefault(); selectAllCurrentPage(); }
@@ -2308,18 +2421,26 @@ document.addEventListener('keydown', event => {
 });
 
 window.addEventListener('studio-auth-change', () => {
-  const allowed = window.STUDIO_PERMISSIONS?.storyboards === true;
+  const allowed = canViewVisto();
+  const editor = canEditVisto();
+  document.body.classList.toggle('visto-read-only', allowed && !editor);
   $('#storyboardsNav').hidden = !allowed;
-  $('#dashboardCreateBtn').hidden = !allowed;
-  $('#dashboardEmptyCreateBtn').hidden = !allowed;
+  $('#dashboardCreateBtn').hidden = !editor;
+  $('#dashboardEmptyCreateBtn').hidden = !editor;
+  $('#dashboardEmpty').querySelector('p').textContent = editor ? 'Creá tu primer storyboard para empezar a ordenar las tomas.' : 'Todavía no hay proyectos compartidos para ver.';
   if (allowed) {
     if (document.documentElement.dataset.studioApp === 'storyboards') {
       if (!$('#dashboardView').hidden) renderDashboard();
       else if ($('#editorView').hidden) showDashboard();
     }
-    hydrateProjectsFromIndexedDb();
+    if (editor) hydrateProjectsFromIndexedDb(loadSharedStoryboards);
+    else { projects = []; project = null; if (document.documentElement.dataset.studioApp === 'storyboards') showDashboard(); else if (!$('#dashboardView').hidden) renderDashboard(); loadSharedStoryboards(); }
     return;
   }
+  cloudLoadGeneration++;
+  projects = [];
+  project = null;
+  if (!$('#dashboardView').hidden) renderDashboard();
   if (document.documentElement.dataset.studioApp === 'home') return;
   // Permission changes can arrive while a storyboard editor is already open.
   // Save is denied by saveProject(), then move the visible workspace to an

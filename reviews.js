@@ -38,7 +38,7 @@
       transaction.onabort = () => reject(transaction.error || new Error('No se pudo guardar el archivo'));
     });
   }
-  const cloud = () => import('./reviews-cloud.js?v=4');
+  const cloud = () => import('./reviews-cloud.js?v=5');
   const canReview = key => window.STUDIO_ROLE === 'admin' || window.STUDIO_PERMISSIONS?.[key] === true;
   const canEnterReviews = () => canReview('reviewsView') || canReview('reviewsClient');
   async function saveRecord(record) {
@@ -872,10 +872,10 @@
       : role === 'viewer' ? 'Lectura permite ver todos los proyectos de Mira.'
       : role === 'collaborator' ? 'Puede ver y editar toda la biblioteca de Mira.'
       : role === 'manager' ? 'Puede ver, crear, editar y compartir toda la biblioteca de Mira.'
-      : 'Visto tiene acceso completo de edición; Mira usa el rol elegido.';
+      : $('#reviewsPersonStoryboardsRole').value === 'viewer' ? 'En Visto puede abrir y recorrer los proyectos, sin editarlos.' : 'Elegí qué puede hacer en Visto y Mira.';
   }
   function personPermissions() {
-    const permissions = { storyboards: $('#reviewsPersonStoryboardsRole').value === 'editor', reviewsClient: false,
+    const permissions = { storyboards: $('#reviewsPersonStoryboardsRole').value === 'editor', storyboardsView: $('#reviewsPersonStoryboardsRole').value !== 'none', reviewsClient: false,
       reviewsView: false, reviewsCreate: false, reviewsEdit: false, reviewsShare: false };
     const role = $('#reviewsPersonReviewsRole').value;
     const selected = role === 'custom'
@@ -898,7 +898,7 @@
     $('#reviewsPersonEmail').value = person?.email || '';
     $('#reviewsPersonEmail').readOnly = Boolean(person);
     $('#reviewsPersonActive').checked = person?.active !== false;
-    $('#reviewsPersonStoryboardsRole').value = permissions.storyboards ? 'editor' : 'none';
+    $('#reviewsPersonStoryboardsRole').value = permissions.storyboards ? 'editor' : permissions.storyboardsView ? 'viewer' : 'none';
     $('#reviewsPersonReviewsRole').value = reviewRoleFor(permissions);
     customPermissions(permissions);
     renderShareChoices(person?.reviewTokens || []);
@@ -917,10 +917,13 @@
     const name = document.createElement('strong'); name.textContent = person.name || person.email;
     const email = document.createElement('small'); email.textContent = person.email;
     identity.append(name, email);
-    const role = document.createElement('span'); role.textContent = owner ? 'Administrador' : person.pending ? 'Sin asignar' : reviewRoleLabels[reviewRoleFor(person.permissions || { reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true })];
+    const role = document.createElement('span');
+    const personPermissions = person.permissions || (person.pending ? {} : { storyboards: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true });
+    const miraRole = reviewRoleFor(personPermissions);
+    role.textContent = owner ? 'Administrador' : person.pending ? 'Sin asignar' : miraRole !== 'none' ? reviewRoleLabels[miraRole] : personPermissions.storyboards ? 'Visto · acceso completo' : personPermissions.storyboardsView ? 'Visto · solo lectura' : 'Sin acceso';
     const apps = document.createElement('span');
     const permissions = person.permissions || (person.pending ? {} : { storyboards: true, reviewsView: true });
-    apps.textContent = owner ? 'Visto · Mira' : [permissions.storyboards && 'Visto', (permissions.reviewsView || permissions.reviewsClient) && 'Mira'].filter(Boolean).join(' · ') || 'Sin aplicaciones';
+    apps.textContent = owner ? 'Visto · Mira' : [(permissions.storyboards || permissions.storyboardsView) && 'Visto', (permissions.reviewsView || permissions.reviewsClient) && 'Mira'].filter(Boolean).join(' · ') || 'Sin aplicaciones';
     const status = document.createElement('span'); status.className = `reviews-staff-state${person.pending ? ' is-pending' : person.active === false ? ' is-disabled' : ''}`; status.textContent = owner ? 'Activo' : personState(person);
     const arrow = document.createElement('span'); arrow.textContent = owner ? '' : '›'; arrow.setAttribute('aria-hidden', 'true');
     row.append(identity, role, apps, status, arrow);
@@ -954,6 +957,7 @@
   }
   $('#reviewsStaffSearch').addEventListener('input', filterStaffList);
   $('#reviewsPersonReviewsRole').addEventListener('change', updatePersonRoleFields);
+  $('#reviewsPersonStoryboardsRole').addEventListener('change', updatePersonRoleFields);
   $('#reviewsAddPerson').addEventListener('click', () => openPerson());
   $('#reviewsAdminBtn').addEventListener('click', async () => {
     if (window.STUDIO_ROLE !== 'admin') return;

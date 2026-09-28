@@ -25,7 +25,7 @@
     </script>
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
-    <link rel="stylesheet" href="styles.css?v=53" />
+    <link rel="stylesheet" href="styles.css?v=54" />
     <link rel="stylesheet" href="reviews.css?v=12" />
     <link rel="stylesheet" href="home.css?v=5" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
@@ -252,7 +252,7 @@
         <form id="reviewsPersonForm"><div class="studio-person-body"><div class="studio-person-heading"><div><h2 id="reviewsPersonTitle">Nueva persona</h2><p id="reviewsPersonSummary">Elegí el acceso de esta cuenta.</p></div><span id="reviewsPersonState">Pendiente</span></div>
           <div class="studio-person-fields"><label>NOMBRE<input id="reviewsPersonName" type="text" maxlength="100" placeholder="Nombre de la persona" /></label><label>GMAIL / CORREO GOOGLE<input id="reviewsPersonEmail" type="email" required placeholder="persona@empresa.com" /></label></div>
           <label class="studio-person-toggle"><input id="reviewsPersonActive" type="checkbox" checked /><span>Acceso habilitado</span></label>
-          <div class="studio-person-apps"><h3>APLICACIONES Y ROLES</h3><label>VISTO<select id="reviewsPersonStoryboardsRole"><option value="none">Sin acceso</option><option value="editor">Editor/a · acceso completo</option></select></label><label>MIRA<select id="reviewsPersonReviewsRole"><option value="none">Sin acceso</option><option value="client">Cliente · solo reviews asignadas</option><option value="viewer">Lectura · toda la biblioteca</option><option value="collaborator">Colaborador/a · ver y editar</option><option value="manager">Ejecutiva / Gerencia · acceso completo</option><option value="custom">Permisos personalizados</option></select></label><p id="reviewsPersonRoleHelp">Seleccioná un rol para cada aplicación.</p><div id="reviewsPersonShares" hidden><h4>REVISIONES ASIGNADAS</h4><p>Esta persona solo verá las reviews que selecciones acá.</p><div id="reviewsPersonShareList"></div></div><div id="reviewsCustomPermissions" hidden></div></div>
+          <div class="studio-person-apps"><h3>APLICACIONES Y ROLES</h3><label>VISTO<select id="reviewsPersonStoryboardsRole"><option value="none">Sin acceso</option><option value="viewer">Solo lectura · ver proyectos</option><option value="editor">Acceso completo · crear y editar</option></select></label><label>MIRA<select id="reviewsPersonReviewsRole"><option value="none">Sin acceso</option><option value="client">Cliente · solo reviews asignadas</option><option value="viewer">Lectura · toda la biblioteca</option><option value="collaborator">Colaborador/a · ver y editar</option><option value="manager">Ejecutiva / Gerencia · acceso completo</option><option value="custom">Permisos personalizados</option></select></label><p id="reviewsPersonRoleHelp">Seleccioná un rol para cada aplicación.</p><div id="reviewsPersonShares" hidden><h4>REVISIONES ASIGNADAS</h4><p>Esta persona solo verá las reviews que selecciones acá.</p><div id="reviewsPersonShareList"></div></div><div id="reviewsCustomPermissions" hidden></div></div>
           <p id="reviewsPersonStatus" role="status" aria-live="polite"></p></div><footer class="studio-person-actions"><button class="studio-person-remove" id="reviewsPersonRemove" type="button" hidden>Eliminar usuario</button><button class="studio-person-cancel" id="reviewsPersonCancel" type="button">Cerrar</button><button class="studio-person-save" id="reviewsPersonSave" type="submit">Guardar cambios</button></footer></form>
       </section>
     </div>
@@ -268,8 +268,8 @@
     <div class="modal-backdrop" id="exportModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="exportTitle"><button class="modal-close" data-close-modal type="button" aria-label="Cerrar">×</button><div class="eyebrow"><span class="eyebrow-line"></span> SALIDA</div><h2 id="exportTitle">Exportar storyboard</h2><p class="modal-copy">Elegí si querés exportar la hoja actual, todas las páginas como imágenes o imprimir el storyboard completo.</p><div class="export-options"><button class="export-option" data-export="png" type="button"><span class="option-icon orange">▧</span><span><strong>Esta hoja como PNG</strong><small>Exporta el artboard tal como lo ves</small></span><span class="option-arrow">→</span></button><button class="export-option" data-export="png-all" type="button"><span class="option-icon orange">▤</span><span><strong>Todas las páginas como PNG</strong><small>Descarga un ZIP con una imagen PNG por página</small></span><span class="option-arrow">→</span></button><button class="export-option" data-export="jpg" type="button"><span class="option-icon blue">▧</span><span><strong>Esta hoja como JPG</strong><small>Archivo liviano para compartir</small></span><span class="option-arrow">→</span></button><button class="export-option" data-export="print" type="button"><span class="option-icon purple">▤</span><span><strong>PDF / Imprimir todas</strong><small>Plancha de rodaje con todas las páginas</small></span><span class="option-arrow">→</span></button></div></div></div>
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
-    <script src="app.js?v=69"></script>
-    <script src="reviews.js?v=17"></script>
+    <script src="app.js?v=70"></script>
+    <script src="reviews.js?v=18"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {
@@ -281,6 +281,6 @@
         appId: '1:475470109485:web:c4400a214f973223aa91a4',
       };
     </script>
-    <script type="module" src="auth.js?v=15"></script>
+    <script type="module" src="auth.js?v=16"></script>
   </body>
 </html>
