@@ -19,6 +19,22 @@ const authGateStatus = document.querySelector('#authGateStatus');
 const firebaseConfig = window.STORYBOARD_FIREBASE_CONFIG;
 const publicReview = new URLSearchParams(location.hash.slice(1)).has('share') || new URLSearchParams(location.hash.slice(1)).has('review');
 const reviewsEntry = document.documentElement.dataset.studioApp === 'reviews';
+const homeEntry = document.documentElement.dataset.studioApp === 'home';
+
+function updateHomeModules(permissions = {}) {
+  for (const [id, statusId, enabled, url] of [
+    ['homeStoryboardsLink', 'homeStoryboardsStatus', permissions.storyboards === true, '?app=storyboards'],
+    ['homeReviewsLink', 'homeReviewsStatus', permissions.reviewsView === true || permissions.reviewsClient === true, '?app=reviews'],
+  ]) {
+    const link = document.getElementById(id);
+    if (!link) continue;
+    if (enabled) link.setAttribute('href', url);
+    else link.removeAttribute('href');
+    link.classList.toggle('is-unavailable', !enabled);
+    link.setAttribute('aria-disabled', String(!enabled));
+    document.getElementById(statusId).textContent = enabled ? 'Entrar a la herramienta →' : 'Sin acceso asignado';
+  }
+}
 
 function setAuthGate(locked, title = '', copy = '', status = '') {
   document.body.classList.toggle('auth-locked', locked);
@@ -80,6 +96,7 @@ function updateProfile(user, access = null, pending = false) {
 
 function renderSignedOut() {
   closeProfile();
+  updateHomeModules();
   window.STUDIO_SIGNED_IN = false;
   window.STUDIO_ROLE = null;
   window.STUDIO_USER = null;
@@ -116,11 +133,12 @@ function renderSignedIn(user, access) {
     accountAvatar.style.backgroundImage = '';
   }
   updateProfile(user, access);
+  updateHomeModules(access.permissions);
   const canEnterReviews = access.permissions.reviewsView || access.permissions.reviewsClient;
   if (!publicReview && reviewsEntry && !canEnterReviews) {
     authGateButton.textContent = 'Cerrar sesión';
     setAuthGate(true, 'No tenés acceso a Reviews.', 'Pedile al administrador que habilite Reviews para tu cuenta.');
-  } else if (!publicReview && !reviewsEntry && !access.permissions.storyboards) {
+  } else if (!publicReview && !reviewsEntry && !homeEntry && !access.permissions.storyboards) {
     authGateButton.textContent = 'Cerrar sesión';
     setAuthGate(true, 'No tenés acceso a Storyboards.', 'Pedile al administrador que habilite Storyboards para tu cuenta.');
   } else {
@@ -132,6 +150,7 @@ function renderSignedIn(user, access) {
 
 function renderNoAccess(user) {
   closeProfile();
+  updateHomeModules();
   window.STUDIO_SIGNED_IN = false;
   window.STUDIO_ROLE = null;
   window.STUDIO_PERMISSIONS = {};
