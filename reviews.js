@@ -344,15 +344,18 @@
   function canComment() { return isGuestReview() ? Boolean(state.shareToken && (state.guestName || window.STUDIO_ROLE === 'review_guest')) : canReview('reviewsEdit') || (canReview('reviewsClient') && Boolean(currentVersion()?.shareToken)); }
   function applyReviewPermissions() {
     const guest = isGuestReview();
-    $('#reviewsGuestPrompt').hidden = !guest || canComment() || !state.shareToken;
+    const commenting = canComment();
+    $('#reviewsGuestPrompt').hidden = !guest || commenting || !state.shareToken;
     $('#reviewsGuestPromptCopy').textContent = isVideo() ? 'Podés mirar y descargar el video sin iniciar sesión. Para comentar, elegí una opción:' : 'Podés mirar la foto sin iniciar sesión. Para comentar, elegí una opción:';
     const identity = guest ? window.STUDIO_ROLE === 'review_guest' ? window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Google' : state.guestName : '';
     const identityNote = $('#reviewsCommentIdentity');
     identityNote.hidden = !identity;
     identityNote.replaceChildren();
     if (identity) { identityNote.append('Comentando como '); const name = document.createElement('strong'); name.textContent = identity; identityNote.append(name); }
-    $('#reviewsCommentForm').hidden = !canComment() || !state.active;
-    $('#reviewsAnnotationBar').hidden = !canComment() || !state.active;
+    $('#reviewsCommentForm').hidden = !commenting || !state.active;
+    $('#reviewsAnnotationBar').hidden = !state.active;
+    $('#reviewsAnnotationBar').classList.toggle('is-readonly', !commenting);
+    $('#reviewsZoomValue').hidden = !state.active;
     $('#reviewsRemoveMedia').hidden = guest || !state.active || !canReview('reviewsEdit');
     $('#reviewsLinkBtn').hidden = guest || !canReview('reviewsEdit');
     $('#reviewsAddSection').hidden = guest || !canReview('reviewsEdit');
@@ -633,7 +636,7 @@
     $('#reviewsShareBtn').hidden = record.source !== 'dropbox' || isGuestReview() || !canReview('reviewsShare');
     $('#reviewsEmpty').hidden = true; $('#reviewsMediaSurface').hidden = false;
     $('#reviewsAnnotationBar').hidden = false; $('#reviewsCommentForm').hidden = false; $('#reviewsRemoveMedia').hidden = false;
-    $('#reviewsViewTools').hidden = false; $('#reviewsPlaybackTools').hidden = record.kind !== 'video'; $('#reviewsScreenshotBtn').hidden = record.kind === 'model'; $('#reviewsDownloadBtn').hidden = !isVideo();
+    $('#reviewsZoomValue').hidden = false; $('#reviewsPlaybackTools').hidden = record.kind !== 'video'; $('#reviewsScreenshotBtn').hidden = record.kind === 'model'; $('#reviewsDownloadBtn').hidden = !isVideo();
     $('#reviewsTimeline').hidden = record.kind !== 'video';
     $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false');
     canvas.classList.remove('is-drawing');
@@ -729,7 +732,8 @@
     stopMedia(); state.active = null; localStorage.removeItem(ACTIVE_KEY);
     $('#reviewsMediaTitle').textContent = 'Elegí un archivo'; $('#reviewsMediaTitle').removeAttribute('title');
     $('#reviewsEmpty').hidden = false; $('#reviewsMediaSurface').hidden = true; $('#reviewsTimeline').hidden = true;
-    $('#reviewsAnnotationBar').hidden = true; $('#reviewsCommentForm').hidden = true; $('#reviewsRemoveMedia').hidden = true; $('#reviewsShareBtn').hidden = true; $('#reviewsScreenshotBtn').hidden = true; $('#reviewsDownloadBtn').hidden = true; $('#reviewsMediaError').hidden = true; $('#reviewsViewTools').hidden = true; $('#reviewsPlaybackTools').hidden = true;
+    closeShortcuts();
+    $('#reviewsAnnotationBar').hidden = true; $('#reviewsCommentForm').hidden = true; $('#reviewsRemoveMedia').hidden = true; $('#reviewsShareBtn').hidden = true; $('#reviewsScreenshotBtn').hidden = true; $('#reviewsDownloadBtn').hidden = true; $('#reviewsZoomValue').hidden = true; $('#reviewsMediaError').hidden = true; $('#reviewsPlaybackTools').hidden = true;
     showStatus('Elegí un archivo para ver sus comentarios.'); renderList(); renderCommentList();
   }
   async function removeActive() {
