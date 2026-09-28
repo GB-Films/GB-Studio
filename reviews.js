@@ -94,10 +94,45 @@
   if (sharedReview) document.body.classList.add('legacy-public-review');
   if (sharedToken) { state.shareToken = sharedToken; state.guestName = sessionStorage.getItem(`gb-review-guest:${sharedToken}`) || ''; }
   let formMode = null;
+  let coverDraft = { image: '', color: '#e86f4c' };
+  let coverRequestId = 0;
   let confirmResolve = null;
   let sectionEditId = null;
   let draggedRecordId = null;
-  function closeForm() { $('#reviewsFormModal').hidden = true; formMode = null; }
+  function closeForm() { $('#reviewsFormModal').hidden = true; formMode = null; coverRequestId += 1; $('#reviewsFormSubmit').disabled = false; }
+  function selectedCoverType() { return document.querySelector('input[name="reviewsCoverType"]:checked')?.value || 'default'; }
+  function updateCoverPreview() {
+    const type = selectedCoverType();
+    const preview = $('#reviewsCoverPreview');
+    const image = $('#reviewsCoverPreviewImage');
+    preview.className = `reviews-cover-preview is-${type}`;
+    preview.style.backgroundColor = type === 'color' ? coverDraft.color : '';
+    image.hidden = type !== 'image' || !coverDraft.image;
+    if (!image.hidden) image.src = coverDraft.image;
+    else image.removeAttribute('src');
+    $('#reviewsCoverImageRow').hidden = type !== 'image';
+    $('#reviewsCoverColorRow').hidden = type !== 'color';
+  }
+  async function prepareCoverImage(file) {
+    if (!file.type.startsWith('image/')) throw new Error('Elegí un archivo de imagen.');
+    if (file.size > 12 * 1024 * 1024) throw new Error('La imagen debe pesar menos de 12 MB.');
+    if (typeof createImageBitmap !== 'function') throw new Error('Este navegador no puede preparar imágenes. Probá con Chrome o Edge.');
+    const bitmap = await createImageBitmap(file);
+    try {
+      if (bitmap.width > 12000 || bitmap.height > 12000) throw new Error('La imagen es demasiado grande. Elegí otra portada.');
+      for (const [width, quality] of [[1000, .8], [800, .68], [640, .58]]) {
+        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = Math.round(width * .6);
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('No se pudo preparar la imagen en este navegador.');
+        const cropWidth = Math.min(bitmap.width, bitmap.height / .6);
+        const cropHeight = cropWidth * .6;
+        context.drawImage(bitmap, (bitmap.width - cropWidth) / 2, (bitmap.height - cropHeight) / 2, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+        const result = canvas.toDataURL('image/jpeg', quality);
+        if (result.length <= 280000) return result;
+      }
+      throw new Error('No se pudo reducir la imagen. Elegí una más liviana.');
+    } finally { bitmap.close(); }
+  }
   function askConfirmation(title, copy, label = 'Eliminar') {
     $('#reviewsConfirmTitle').textContent = title;
     $('#reviewsConfirmCopy').textContent = copy;
@@ -119,6 +154,15 @@
     $('#reviewsEntityAgency').value = entity?.agency || '';
     $('#reviewsEntityDirector').value = entity?.director || '';
     $('#reviewsEntityCategory').value = entity?.category || 'Montaje';
+    if (project) {
+      coverDraft = { image: /^data:image\/jpeg;base64,/.test(entity?.coverImage || '') ? entity.coverImage : '', color: /^#[0-9a-f]{6}$/i.test(entity?.coverColor || '') ? entity.coverColor : '#e86f4c' };
+      const coverType = ['default', 'image', 'color'].includes(entity?.coverType) ? entity.coverType : 'default';
+      document.querySelector(`input[name="reviewsCoverType"][value="${coverType}"]`).checked = true;
+      $('#reviewsCoverColor').value = coverDraft.color;
+      $('#reviewsCoverFile').value = '';
+      $('#reviewsCoverMessage').textContent = '';
+      updateCoverPreview();
+    }
     $('#reviewsFormTitle').textContent = `${entity ? 'Editar' : project ? 'Nuevo' : 'Nueva'} ${project ? 'proyecto' : 'review'}`;
     $('#reviewsFormCopy').textContent = project ? 'El proyecto reúne distintas instancias de feedback, cada una con sus propios archivos y comentarios.' : 'Una review independiente para montaje, VFX, cliente u otra etapa.';
     $('#reviewsFormSubmit').textContent = entity ? 'Guardar cambios →' : project ? 'Crear proyecto →' : 'Crear review →';
@@ -130,7 +174,7 @@
     const project = currentProject();
     const clientOnly = canReview('reviewsClient') && !canReview('reviewsView');
     const grid = $('#reviewsHomeGrid'); grid.replaceChildren();
-    $('#reviewsHomeTitle').textContent = project ? project.title : 'Proyectos de review';
+    $('#reviewsHomeTitle').textContent = project ? project.title : 'Mira tus proyectos';
     $('#reviewsHomeCopy').textContent = clientOnly ? 'Estas son las reviews que el equipo compartió con vos.' : project ? 'Elegí una review o creá otra para una etapa distinta. Cada review tiene sus archivos y comentarios.' : 'Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.';
     $('#reviewsCreateProject').hidden = Boolean(project) || !canReview('reviewsCreate');
     $('#reviewsCreateVersion').hidden = !canReview('reviewsCreate');
@@ -146,14 +190,26 @@
     if (project) $('#reviewsProjectMeta').textContent = [project.client && `CLIENTE · ${project.client}`, project.agency && `AGENCIA · ${project.agency}`, project.director && `DIRECTOR · ${project.director}`, 'GRAN BERTA FILMS'].filter(Boolean).join('  /  ');
     for (const entry of entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
       const card = document.createElement('article'); card.className = 'reviews-home-card';
-      const open = document.createElement('button'); open.type = 'button'; open.className = 'reviews-home-card-open';
-      const mark = document.createElement('span'); mark.className = 'reviews-home-card-mark'; mark.textContent = project ? entry.category.slice(0, 1) : '▣';
+      const open = document.createElement('button'); open.type = 'button'; open.className = `reviews-home-card-open ${project ? 'is-review-card' : 'is-project-card'}`;
+      if (!project) {
+        const cover = document.createElement('span'); cover.className = 'reviews-home-card-cover'; cover.setAttribute('aria-hidden', 'true');
+        if (entry.coverType === 'image' && /^data:image\/jpeg;base64,/.test(entry.coverImage || '')) {
+          cover.classList.add('is-image');
+          const coverImage = document.createElement('img'); coverImage.src = entry.coverImage; coverImage.alt = '';
+          cover.append(coverImage);
+        } else if (entry.coverType === 'color' && /^#[0-9a-f]{6}$/i.test(entry.coverColor || '')) {
+          cover.classList.add('is-color'); cover.style.backgroundColor = entry.coverColor;
+        } else {
+          cover.classList.add('is-default'); const wordmark = document.createElement('span'); wordmark.textContent = 'MIRA'; cover.append(wordmark);
+        }
+        open.append(cover);
+      }
+      const content = document.createElement('span'); content.className = 'reviews-home-card-content';
       const tag = document.createElement('span'); tag.className = 'reviews-home-card-tag'; tag.textContent = project ? entry.category.toUpperCase() : (entry.client || 'SIN CLIENTE').toUpperCase();
       const title = document.createElement('strong'); title.textContent = entry.title;
       const count = document.createElement('small'); const records = project ? state.records.filter(record => record.versionId === entry.id) : state.records.filter(record => record.projectId === entry.id);
       count.textContent = project ? `${records.length} archivo${records.length === 1 ? '' : 's'} · ${records.reduce((sum, record) => sum + record.comments.length, 0)} comentarios` : `${entry.versions.length} review${entry.versions.length === 1 ? '' : 's'} · ${records.length} archivos`;
-      const arrow = document.createElement('span'); arrow.className = 'reviews-home-card-arrow'; arrow.textContent = '↗';
-      open.append(mark, tag, title, count, arrow);
+      content.append(tag, title, count); open.append(content);
       open.addEventListener('click', () => project ? openVersion(entry.id) : showReviewsHome(entry.id));
       const actions = document.createElement('div'); actions.className = 'reviews-home-card-actions';
       if (project && canReview('reviewsShare')) actions.append(cardAction('↗ Compartir', `Compartir ${entry.title}`, () => shareVersion(entry.id)));
@@ -952,15 +1008,52 @@
   $('#reviewsEmptyCreate').addEventListener('click', () => openForm(currentProject() ? 'version' : 'project'));
   $('#reviewsFormClose').addEventListener('click', closeForm);
   $('#reviewsFormCancel').addEventListener('click', closeForm);
+  document.querySelectorAll('input[name="reviewsCoverType"]').forEach(input => input.addEventListener('change', () => {
+    $('#reviewsCoverMessage').textContent = '';
+    updateCoverPreview();
+  }));
+  $('#reviewsCoverColor').addEventListener('input', event => {
+    coverDraft.color = event.target.value;
+    document.querySelector('input[name="reviewsCoverType"][value="color"]').checked = true;
+    updateCoverPreview();
+  });
+  $('#reviewsCoverFile').addEventListener('change', async event => {
+    const file = event.target.files?.[0]; if (!file) return;
+    const requestId = ++coverRequestId;
+    $('#reviewsFormSubmit').disabled = true;
+    $('#reviewsCoverMessage').textContent = 'Preparando portada…';
+    try {
+      const imageData = await prepareCoverImage(file);
+      if (requestId !== coverRequestId || formMode?.type !== 'project') return;
+      coverDraft.image = imageData;
+      document.querySelector('input[name="reviewsCoverType"][value="image"]').checked = true;
+      $('#reviewsCoverMessage').textContent = 'Imagen lista para guardar.';
+      updateCoverPreview();
+    } catch (error) {
+      if (requestId === coverRequestId) {
+        $('#reviewsCoverMessage').textContent = error.message || 'No se pudo cargar la imagen.';
+        event.target.value = '';
+      }
+    } finally { if (requestId === coverRequestId) $('#reviewsFormSubmit').disabled = false; }
+  });
   $('#reviewsEntityForm').addEventListener('submit', async event => {
     event.preventDefault(); if (!formMode) return;
     const title = $('#reviewsEntityTitle').value.trim(), client = $('#reviewsEntityClient').value.trim();
     if (!title || (formMode.type === 'project' && !client)) return;
+    const coverType = formMode.type === 'project' ? selectedCoverType() : 'default';
+    if (coverType === 'image' && !coverDraft.image) {
+      $('#reviewsCoverMessage').textContent = 'Elegí una imagen antes de guardar.';
+      $('#reviewsCoverFile').focus();
+      return;
+    }
     const now = new Date().toISOString();
+    const submitButton = $('#reviewsFormSubmit'); submitButton.disabled = true;
     try {
       if (formMode.type === 'project') {
         const old = state.projects.find(entry => entry.id === formMode.id);
-        const project = { id: old?.id || crypto.randomUUID(), title, client, agency: $('#reviewsEntityAgency').value.trim(), director: $('#reviewsEntityDirector').value.trim(), createdAt: old?.createdAt || now, updatedAt: now, versions: old?.versions || [{ id: crypto.randomUUID(), title: 'Montaje · V1', category: 'Montaje', createdAt: now, updatedAt: now }] };
+        const project = { id: old?.id || crypto.randomUUID(), title, client, agency: $('#reviewsEntityAgency').value.trim(), director: $('#reviewsEntityDirector').value.trim(), coverType,
+          coverImage: coverType === 'image' ? coverDraft.image : '', coverColor: coverType === 'color' ? coverDraft.color : '',
+          createdAt: old?.createdAt || now, updatedAt: now, versions: old?.versions || [{ id: crypto.randomUUID(), title: 'Montaje · V1', category: 'Montaje', createdAt: now, updatedAt: now }] };
         if (old?.legacy) project.legacy = true;
         await saveProject(project);
         state.projects = old ? state.projects.map(entry => entry.id === old.id ? project : entry) : [...state.projects, project];
@@ -974,7 +1067,8 @@
         state.projects = state.projects.map(entry => entry.id === updated.id ? updated : entry);
         closeForm(); renderHome();
       }
-    } catch (error) { console.error(error); $('#reviewsFormCopy').textContent = 'No se pudo guardar. Revisá el espacio disponible en este navegador.'; }
+    } catch (error) { console.error(error); $('#reviewsFormCopy').textContent = 'No se pudo guardar. Revisá tu conexión y el espacio disponible.'; }
+    finally { submitButton.disabled = false; }
   });
   $('#reviewsConfirmClose').addEventListener('click', () => closeConfirmation(false));
   $('#reviewsConfirmCancel').addEventListener('click', () => closeConfirmation(false));

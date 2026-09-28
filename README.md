@@ -4,6 +4,7 @@ La [página principal de GB Studio](https://gb-films.github.io/GB-Studio/) reún
 
 ## Mira
 
+- Cada proyecto puede mostrar la portada predeterminada, una imagen cargada y reducida para sincronizarla con el equipo, o un color sólido. La portada se elige al crear o editar el proyecto.
 - Para revisar un archivo ya guardado en Dropbox, compartí **ese archivo** y pegá su enlace en «Vincular desde Dropbox». Reviews conserva el enlace y reproduce el original; no lo sube ni crea otra copia. Dropbox recomienda `raw=1` para mostrar directamente el contenido de un enlace compartido, y la app lo aplica al reproducir.
 - La vista directa sin conexión OAuth requiere un enlace accesible para cualquiera que lo tenga, sin contraseña ni restricción de equipo. Quien obtenga ese enlace podrá abrir el archivo en Dropbox. Si la política de la productora exige enlaces privados, hará falta una integración autenticada de Dropbox; esta modalidad por enlace no evita sus permisos ni garantiza que todos los formatos de video se reproduzcan en el navegador.
 - En Reviews solo se pueden vincular archivos ya compartidos en Dropbox: no hay carga local ni arrastrar archivos desde el equipo. Cada archivo tiene sus propios comentarios. Los archivos locales creados en versiones anteriores siguen disponibles para no perder trabajo, pero ya no se pueden agregar nuevos.

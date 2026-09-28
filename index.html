@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="stylesheet" href="styles.css?v=52" />
-    <link rel="stylesheet" href="reviews.css?v=11" />
+    <link rel="stylesheet" href="reviews.css?v=12" />
     <link rel="stylesheet" href="home.css?v=3" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
   </head>
@@ -84,12 +84,11 @@
 
       <main class="reviews-home" id="reviewsHome" hidden>
         <div class="reviews-home-inner">
-          <div class="reviews-home-top"><div><span class="eyebrow">GB STUDIO / MIRA</span><h1 id="reviewsHomeTitle">Proyectos de revisión</h1><p id="reviewsHomeCopy">Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.</p></div><button class="reviews-home-create" id="reviewsCreateProject" type="button">＋ Nuevo proyecto</button></div>
+          <div class="reviews-home-top"><div><span class="eyebrow">GB STUDIO / MIRA</span><h1 id="reviewsHomeTitle">Mira tus proyectos</h1><p id="reviewsHomeCopy">Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.</p></div><button class="reviews-home-create" id="reviewsCreateProject" type="button">＋ Nuevo proyecto</button></div>
           <div class="reviews-home-context" id="reviewsProjectContext" hidden><button id="reviewsBackProjects" type="button">← Todos los proyectos</button><div id="reviewsProjectMeta"></div><button id="reviewsCreateVersion" type="button">＋ Nueva review</button></div>
           <div class="reviews-home-heading"><span id="reviewsHomeSectionLabel">PROYECTOS</span><span id="reviewsHomeCount">0 proyectos</span></div>
           <div class="reviews-home-grid" id="reviewsHomeGrid"></div>
           <div class="reviews-home-empty" id="reviewsHomeEmpty" hidden><span>▣</span><h2>Un lugar para cada devolución.</h2><p>Creá un proyecto y después abrí reviews distintas para montaje, VFX o cliente.</p><button id="reviewsEmptyCreate" type="button">＋ Crear proyecto</button></div>
-          <p class="reviews-home-note">Los proyectos de Mira se sincronizan con el equipo autorizado. Compartí una review para que un cliente vea sus archivos y deje correcciones sin entrar al estudio.</p>
         </div>
       </main>
 
@@ -204,7 +203,34 @@
       </main>
     </div>
 
-    <div class="modal-backdrop reviews-modal-backdrop" id="reviewsFormModal" hidden><form class="modal reviews-form-modal" id="reviewsEntityForm" role="dialog" aria-modal="true" aria-labelledby="reviewsFormTitle"><button class="modal-close" id="reviewsFormClose" type="button" aria-label="Cerrar">×</button><span class="confirm-modal-mark">＋</span><div class="eyebrow">GB STUDIO / MIRA</div><h2 id="reviewsFormTitle">Nuevo proyecto</h2><p class="modal-copy" id="reviewsFormCopy">Completá los datos para organizar tus revisiones.</p><div class="reviews-form-fields"><label>TÍTULO *<input id="reviewsEntityTitle" type="text" maxlength="100" required placeholder="Ej. Campaña verano" /></label><div id="reviewsProjectFields"><label>CLIENTE *<input id="reviewsEntityClient" type="text" maxlength="100" placeholder="Ej. Adidas" /></label><label>AGENCIA<input id="reviewsEntityAgency" type="text" maxlength="100" placeholder="Opcional" /></label><label>DIRECTOR<input id="reviewsEntityDirector" type="text" maxlength="100" placeholder="Opcional" /></label><p>Productora · GRAN BERTA FILMS</p></div><div id="reviewsVersionFields" hidden><label>ETAPA<select id="reviewsEntityCategory"><option value="Montaje">Montaje</option><option value="VFX">VFX</option><option value="Cliente">Cliente</option><option value="General">General</option></select></label></div></div><div class="modal-actions"><button class="button button-secondary" id="reviewsFormCancel" type="button">Cancelar</button><button class="button button-primary" type="submit" id="reviewsFormSubmit">Crear proyecto →</button></div></form></div>
+    <div class="modal-backdrop reviews-modal-backdrop" id="reviewsFormModal" hidden>
+      <form class="modal reviews-form-modal" id="reviewsEntityForm" role="dialog" aria-modal="true" aria-labelledby="reviewsFormTitle">
+        <button class="modal-close" id="reviewsFormClose" type="button" aria-label="Cerrar">×</button><span class="confirm-modal-mark">＋</span>
+        <div class="eyebrow">GB STUDIO / MIRA</div><h2 id="reviewsFormTitle">Nuevo proyecto</h2><p class="modal-copy" id="reviewsFormCopy">Completá los datos para organizar tus revisiones.</p>
+        <div class="reviews-form-fields">
+          <label>TÍTULO *<input id="reviewsEntityTitle" type="text" maxlength="100" required placeholder="Ej. Campaña verano" /></label>
+          <div id="reviewsProjectFields">
+            <label>CLIENTE *<input id="reviewsEntityClient" type="text" maxlength="100" placeholder="Ej. Adidas" /></label>
+            <label>AGENCIA<input id="reviewsEntityAgency" type="text" maxlength="100" placeholder="Opcional" /></label>
+            <label>DIRECTOR<input id="reviewsEntityDirector" type="text" maxlength="100" placeholder="Opcional" /></label>
+            <fieldset class="reviews-cover-fields"><legend>PORTADA DEL PROYECTO</legend>
+              <div class="reviews-cover-preview is-default" id="reviewsCoverPreview" aria-hidden="true"><span>MIRA</span><img id="reviewsCoverPreviewImage" alt="" hidden /></div>
+              <div class="reviews-cover-options" role="group" aria-label="Tipo de portada">
+                <label><input type="radio" name="reviewsCoverType" value="default" checked /> Predeterminada</label>
+                <label><input type="radio" name="reviewsCoverType" value="image" /> Imagen</label>
+                <label><input type="radio" name="reviewsCoverType" value="color" /> Color sólido</label>
+              </div>
+              <label class="reviews-cover-control" id="reviewsCoverImageRow" hidden>SUBIR IMAGEN<input id="reviewsCoverFile" type="file" accept="image/*" /></label>
+              <label class="reviews-cover-control" id="reviewsCoverColorRow" hidden>COLOR<input id="reviewsCoverColor" type="color" value="#e86f4c" /></label>
+              <p id="reviewsCoverMessage" role="status" aria-live="polite"></p>
+            </fieldset>
+            <p>Productora · GRAN BERTA FILMS</p>
+          </div>
+          <div id="reviewsVersionFields" hidden><label>ETAPA<select id="reviewsEntityCategory"><option value="Montaje">Montaje</option><option value="VFX">VFX</option><option value="Cliente">Cliente</option><option value="General">General</option></select></label></div>
+        </div>
+        <div class="modal-actions"><button class="button button-secondary" id="reviewsFormCancel" type="button">Cancelar</button><button class="button button-primary" type="submit" id="reviewsFormSubmit">Crear proyecto →</button></div>
+      </form>
+    </div>
     <div class="modal-backdrop reviews-modal-backdrop" id="reviewsConfirmModal" hidden><div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="reviewsConfirmTitle"><button class="modal-close" id="reviewsConfirmClose" type="button" aria-label="Cerrar">×</button><span class="confirm-modal-mark delete-modal-mark">⌫</span><div class="eyebrow">GB STUDIO / MIRA</div><h2 id="reviewsConfirmTitle">¿Eliminar?</h2><p class="modal-copy" id="reviewsConfirmCopy"></p><div class="modal-actions"><button class="button button-secondary" id="reviewsConfirmCancel" type="button">Cancelar</button><button class="button button-danger" id="reviewsConfirmAccept" type="button">Eliminar</button></div></div></div>
     <div class="modal-backdrop reviews-modal-backdrop" id="reviewsCopyModal" hidden><div class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="reviewsCopyTitle"><button class="modal-close" id="reviewsCopyClose" type="button" aria-label="Cerrar">×</button><span class="confirm-modal-mark">↗</span><div class="eyebrow">ENLACE DE REVIEW</div><h2 id="reviewsCopyTitle">Compartí esta review</h2><p class="modal-copy" id="reviewsCopyDescription">Quien tenga el enlace podrá ver los archivos y dejar comentarios con su nombre, sin entrar al resto de GB Studio.</p><input id="reviewsCopyInput" class="reviews-copy-input" readonly aria-label="Enlace para compartir" /><div class="modal-actions"><button class="button button-secondary" id="reviewsCopyLink" type="button">Copiar enlace</button><button class="button button-primary" id="reviewsCopyDone" type="button">Listo</button></div></div></div>
     <div class="modal-backdrop studio-settings-backdrop" id="reviewsAdminModal" hidden>
@@ -242,7 +268,7 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
     <script src="app.js?v=69"></script>
-    <script src="reviews.js?v=16"></script>
+    <script src="reviews.js?v=17"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {
