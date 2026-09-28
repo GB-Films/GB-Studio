@@ -4,7 +4,7 @@
   const $ = selector => document.querySelector(selector);
   const DB_NAME = 'gb-studio-reviews-v1';
   const ACTIVE_KEY = 'gb-studio-reviews-active-v1';
-  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, model: null, drawing: false, sketchMode: false, draft: [], scratch: [], activeCommentId: null, pointerId: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
+  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], activeCommentId: null, pointerId: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
   const video = $('#reviewsVideo');
   const image = $('#reviewsImage');
   const canvas = $('#reviewsCanvas');
@@ -66,7 +66,6 @@
     const rest = String(whole % 60).padStart(2, '0');
     return hours ? `${hours}:${minutes}:${rest}` : `${minutes}:${rest}`;
   }
-  function readableSize(bytes) { return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`; }
   function parseDropboxLink(input) {
     let url;
     try { url = new URL(input.trim()); } catch { throw new Error('Pegá un enlace válido de Dropbox.'); }
@@ -167,6 +166,7 @@
     }
   }
   function showReviewsHome(projectId = null) {
+    if (document.documentElement.dataset.studioApp !== 'reviews') return;
     if (document.body.classList.contains('public-review')) return;
     if (document.body.classList.contains('auth-locked')) return;
     if (!canEnterReviews()) return;
@@ -273,7 +273,8 @@
     $('#reviewsRemoveMedia').hidden = guest || !state.active || !canReview('reviewsEdit');
     $('#reviewsLinkBtn').hidden = guest || !canReview('reviewsEdit');
     $('#reviewsAddSection').hidden = guest || !canReview('reviewsEdit');
-    $('#reviewsShareBtn').hidden = guest || !canReview('reviewsShare');
+    $('#reviewsShareBtn').hidden = guest || state.active?.source !== 'dropbox' || !canReview('reviewsShare');
+    $('#reviewsDownloadBtn').hidden = !isMp4();
     $('#reviewsCommentStorageNote').textContent = state.shareToken || currentVersion()?.shareToken ? 'Los comentarios y dibujos de esta review se comparten con quienes tengan el enlace.' : 'Este comentario se guarda solo en este navegador hasta que compartas la review.';
     renderCommentList();
   }
@@ -302,12 +303,12 @@
     state.view.scale = next; applyView();
   }
   function resizeCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    if (!width || !height) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
     redraw();
   }
   function fitSurface() {
@@ -328,22 +329,50 @@
     return state.active?.comments.find(comment => comment.id === state.activeCommentId)?.strokes || [];
   }
   function redraw() {
-    const rect = canvas.getBoundingClientRect();
-    ctx.clearRect(0, 0, rect.width, rect.height);
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    ctx.clearRect(0, 0, width, height);
     for (const stroke of visibleStrokes()) {
       if (!stroke.points?.length) continue;
+      const tool = stroke.tool || 'pen';
+      const [startX, startY] = stroke.points[0];
+      const [endX, endY] = stroke.points.at(-1);
+      const x0 = startX * width, y0 = startY * height, x1 = endX * width, y1 = endY * height;
+      ctx.save();
       ctx.beginPath();
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.strokeStyle = stroke.color || '#ff3b30';
-      ctx.lineWidth = Math.max(2, rect.width * .004);
-      stroke.points.forEach(([x, y], index) => index ? ctx.lineTo(x * rect.width, y * rect.height) : ctx.moveTo(x * rect.width, y * rect.height));
-      if (stroke.points.length === 1) { const [x, y] = stroke.points[0]; ctx.lineTo(x * rect.width + .1, y * rect.height + .1); }
+      ctx.lineWidth = tool === 'eraser' ? Math.max(14, width * .035) : tool === 'highlighter' ? Math.max(12, width * .025) : Math.max(2, width * .004);
+      if (tool === 'eraser') ctx.globalCompositeOperation = 'destination-out';
+      if (tool === 'highlighter') ctx.globalAlpha = .38;
+      if (tool === 'rect' || tool === 'square') ctx.rect(x0, y0, x1 - x0, y1 - y0);
+      else if (tool === 'circle' || tool === 'ellipse') {
+        const radiusX = Math.abs(x1 - x0) / 2, radiusY = Math.abs(y1 - y0) / 2;
+        if (radiusX && radiusY) ctx.ellipse((x0 + x1) / 2, (y0 + y1) / 2, radiusX, radiusY, 0, 0, Math.PI * 2);
+      } else if (tool === 'line' || tool === 'arrow') {
+        ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+        if (tool === 'arrow' && Math.hypot(x1 - x0, y1 - y0) > 2) {
+          const angle = Math.atan2(y1 - y0, x1 - x0), head = Math.max(10, Math.min(23, width * .025));
+          ctx.moveTo(x1 - head * Math.cos(angle - Math.PI / 6), y1 - head * Math.sin(angle - Math.PI / 6));
+          ctx.lineTo(x1, y1);
+          ctx.lineTo(x1 - head * Math.cos(angle + Math.PI / 6), y1 - head * Math.sin(angle + Math.PI / 6));
+        }
+      } else {
+        stroke.points.forEach(([x, y], index) => index ? ctx.lineTo(x * width, y * height) : ctx.moveTo(x * width, y * height));
+        if (stroke.points.length === 1) ctx.lineTo(x0 + .1, y0 + .1);
+      }
       ctx.stroke();
+      ctx.restore();
     }
   }
   function pointerPoint(event) {
     const rect = canvas.getBoundingClientRect();
     return [Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))];
+  }
+  function shapePoint(start, point, tool) {
+    if (tool !== 'square' && tool !== 'circle') return point;
+    const dx = (point[0] - start[0]) * canvas.clientWidth, dy = (point[1] - start[1]) * canvas.clientHeight;
+    const side = Math.min(Math.abs(dx), Math.abs(dy));
+    return [start[0] + Math.sign(dx) * side / canvas.clientWidth, start[1] + Math.sign(dy) * side / canvas.clientHeight];
   }
   function sectionDefinitions() { return [...(currentVersion()?.sections || []), { id: 'default', title: 'Sin clasificar' }]; }
   function recordSection(record) { return record.sectionId || 'default'; }
@@ -498,12 +527,10 @@
     localStorage.setItem(ACTIVE_KEY, id);
     renderList(); renderCommentList();
     $('#reviewsMediaTitle').textContent = record.name;
-    $('#reviewsMediaDetails').textContent = record.source === 'dropbox' ? `${record.kind === 'model' ? 'Modelo FBX' : record.kind === 'video' ? 'Video' : 'Foto'} · Dropbox · sin copia local` : `${record.kind === 'model' ? 'Modelo FBX' : record.kind === 'video' ? 'Video' : 'Foto'} · archivo local anterior · ${readableSize(record.size)}`;
+    $('#reviewsMediaTitle').title = record.name;
     $('#reviewsMediaSurface').style.setProperty('--review-aspect', String(16 / 9));
     $('#reviewsMediaError').hidden = true;
-    $('#reviewsOpenSource').hidden = record.source !== 'dropbox';
     $('#reviewsShareBtn').hidden = record.source !== 'dropbox' || isGuestReview() || !canReview('reviewsShare');
-    if (record.source === 'dropbox') { $('#reviewsOpenSource').href = record.sourceUrl; $('#reviewsErrorSource').href = record.sourceUrl; }
     $('#reviewsEmpty').hidden = true; $('#reviewsMediaSurface').hidden = false;
     $('#reviewsAnnotationBar').hidden = false; $('#reviewsCommentForm').hidden = false; $('#reviewsRemoveMedia').hidden = false;
     $('#reviewsViewTools').hidden = false; $('#reviewsPlaybackTools').hidden = record.kind !== 'video'; $('#reviewsDownloadBtn').hidden = !isMp4();
@@ -600,9 +627,9 @@
   function clearViewer() {
     state.stopComments?.(); state.stopComments = null;
     stopMedia(); state.active = null; localStorage.removeItem(ACTIVE_KEY);
-    $('#reviewsMediaTitle').textContent = 'Elegí un archivo'; $('#reviewsMediaDetails').textContent = 'Vinculá un archivo de Dropbox para empezar.';
+    $('#reviewsMediaTitle').textContent = 'Elegí un archivo'; $('#reviewsMediaTitle').removeAttribute('title');
     $('#reviewsEmpty').hidden = false; $('#reviewsMediaSurface').hidden = true; $('#reviewsTimeline').hidden = true;
-    $('#reviewsAnnotationBar').hidden = true; $('#reviewsCommentForm').hidden = true; $('#reviewsRemoveMedia').hidden = true; $('#reviewsOpenSource').hidden = true; $('#reviewsShareBtn').hidden = true; $('#reviewsMediaError').hidden = true; $('#reviewsViewTools').hidden = true; $('#reviewsPlaybackTools').hidden = true;
+    $('#reviewsAnnotationBar').hidden = true; $('#reviewsCommentForm').hidden = true; $('#reviewsRemoveMedia').hidden = true; $('#reviewsShareBtn').hidden = true; $('#reviewsDownloadBtn').hidden = true; $('#reviewsMediaError').hidden = true; $('#reviewsViewTools').hidden = true; $('#reviewsPlaybackTools').hidden = true;
     showStatus('Elegí un archivo para ver sus comentarios.'); renderList(); renderCommentList();
   }
   async function removeActive() {
@@ -653,8 +680,7 @@
         console.error('Could not load shared review', error);
         showReviews(); clearViewer();
         $('#reviewsMediaTitle').textContent = 'Review no disponible';
-        $('#reviewsMediaDetails').textContent = 'El enlace puede estar vencido o la review fue retirada.';
-        $('#reviewsEmpty p').textContent = 'Pedí un enlace nuevo al equipo de GB Studio.';
+        $('#reviewsEmpty p').textContent = 'El enlace puede estar vencido o la review fue retirada. Pedí un enlace nuevo al equipo de GB Studio.';
       }
       return;
     }
@@ -718,7 +744,7 @@
       const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${state.active.name.replace(/\.[^.]+$/, '')}-${isVideo() ? `fotograma-${frameNumber()}` : 'captura'}.png`; anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       showStatus('Captura PNG descargada.');
-    } catch (error) { showStatus('No se pudo capturar este archivo externo: Dropbox no habilita la lectura de sus píxeles desde esta página. Podés descargar el original desde Dropbox para capturarlo fuera de GB Studio.'); console.error(error); }
+    } catch (error) { showStatus('No se pudo capturar este archivo externo: Dropbox no habilita la lectura de sus píxeles desde esta página.'); console.error(error); }
   }
   function downloadMp4() {
     if (!isMp4()) return;
@@ -913,7 +939,6 @@
   });
 
   $('#reviewsNav').addEventListener('click', () => isGuestReview() ? showReviews() : showReviewsHome());
-  $('#dashboardReviewsBtn').addEventListener('click', () => showReviewsHome());
   $('#reviewsBackVersions').addEventListener('click', () => showReviewsHome(state.projectId));
   $('#reviewsBackProjects').addEventListener('click', () => showReviewsHome());
   $('#reviewsCreateProject').addEventListener('click', () => openForm('project'));
@@ -999,7 +1024,6 @@
   window.addEventListener('studio-auth-change', () => {
     $('#reviewsAdminBtn').hidden = window.STUDIO_ROLE !== 'admin';
     $('#reviewsNav').hidden = !canEnterReviews();
-    $('#dashboardReviewsBtn').hidden = !canEnterReviews();
     if (!window.STUDIO_SIGNED_IN) { $('#reviewsAdminModal').hidden = true; $('#reviewsPersonModal').hidden = true; }
     const accessKey = `${window.STUDIO_USER?.uid || ''}:${JSON.stringify(window.STUDIO_PERMISSIONS || {})}:${JSON.stringify(window.STUDIO_REVIEW_TOKENS || [])}`;
     if (sharedReview && window.STUDIO_SIGNED_IN) {
@@ -1053,7 +1077,6 @@
       }).catch(error => { hydratedUserUid = null; console.error('Could not load shared reviews', error); });
     } else if (!window.STUDIO_SIGNED_IN || !canEnterReviews()) hydratedUserUid = null;
   });
-  $('#reviewsShareBtn').textContent = 'Compartir review ↗';
   $('#reviewsShareBtn').addEventListener('click', () => shareVersion());
   $('#reviewsInBtn').addEventListener('click', () => setRangePoint('in'));
   $('#reviewsOutBtn').addEventListener('click', () => setRangePoint('out'));
@@ -1111,12 +1134,54 @@
   const mediaError = () => { if (state.active?.source === 'dropbox') { $('#reviewsMediaError').hidden = false; showStatus('No se pudo abrir el enlace de Dropbox. Revisá el acceso y el formato del archivo.'); } else showStatus('El formato no se puede reproducir en este navegador. Probá con MP4 (H.264), WebM o una foto compatible.'); };
   video.addEventListener('error', mediaError);
   image.addEventListener('error', mediaError);
-  $('#reviewsDrawBtn').addEventListener('click', () => { if (!state.active) return; video.pause(); state.activeCommentId = null; state.sketchMode = false; state.drawing = !state.drawing; canvas.classList.toggle('is-drawing', state.drawing); $('#reviewsDrawBtn').classList.toggle('is-active', state.drawing); $('#reviewsDrawBtn').setAttribute('aria-pressed', String(state.drawing)); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false'); redraw(); });
-  $('#reviewsSketchBtn').addEventListener('click', () => { if (!state.active) return; video.pause(); state.activeCommentId = null; state.sketchMode = !state.sketchMode; state.drawing = state.sketchMode; canvas.classList.toggle('is-drawing', state.drawing); $('#reviewsSketchBtn').classList.toggle('is-active', state.sketchMode); $('#reviewsSketchBtn').setAttribute('aria-pressed', String(state.sketchMode)); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); redraw(); });
+  function syncDrawingControls() {
+    canvas.classList.toggle('is-drawing', state.drawing);
+    $('#reviewsDrawBtn').classList.toggle('is-active', state.drawing && !state.sketchMode);
+    $('#reviewsDrawBtn').setAttribute('aria-pressed', String(state.drawing && !state.sketchMode));
+    $('#reviewsSketchBtn').classList.toggle('is-active', state.sketchMode);
+    $('#reviewsSketchBtn').setAttribute('aria-pressed', String(state.sketchMode));
+  }
+  function closeToolMenu() { $('#reviewsToolMenu').hidden = true; $('#reviewsToolPicker').setAttribute('aria-expanded', 'false'); }
+  function positionToolMenu() {
+    const menu = $('#reviewsToolMenu');
+    if (menu.hidden) return;
+    menu.style.transform = '';
+    const rect = menu.getBoundingClientRect();
+    const shift = rect.left < 12 ? 12 - rect.left : rect.right > window.innerWidth - 12 ? window.innerWidth - 12 - rect.right : 0;
+    menu.style.transform = `translateX(${shift}px)`;
+  }
+  $('#reviewsToolPicker').addEventListener('click', () => {
+    const menu = $('#reviewsToolMenu'); menu.hidden = !menu.hidden;
+    $('#reviewsToolPicker').setAttribute('aria-expanded', String(!menu.hidden));
+    positionToolMenu();
+  });
+  window.addEventListener('resize', positionToolMenu);
+  $('#reviewsToolMenu').addEventListener('click', event => {
+    const button = event.target.closest('[data-review-tool]');
+    if (!button || !state.active) return;
+    state.tool = button.dataset.reviewTool;
+    const label = button.lastChild.textContent.trim();
+    $('#reviewsToolPicker').firstChild.textContent = `${button.querySelector('span').textContent} ${label} `;
+    $('#reviewsToolPicker').setAttribute('aria-label', `Herramienta: ${label}`);
+    document.querySelectorAll('[data-review-tool]').forEach(option => option.setAttribute('aria-pressed', String(option === button)));
+    closeToolMenu(); video.pause(); state.activeCommentId = null;
+    state.drawing = true; syncDrawingControls(); redraw();
+  });
+  document.addEventListener('pointerdown', event => { if (!event.target.closest('.reviews-tool-picker')) closeToolMenu(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeToolMenu(); });
+  $('#reviewsDrawBtn').addEventListener('click', () => { if (!state.active) return; video.pause(); state.activeCommentId = null; state.drawing = state.sketchMode || !state.drawing; state.sketchMode = false; syncDrawingControls(); redraw(); });
+  $('#reviewsSketchBtn').addEventListener('click', () => { if (!state.active) return; video.pause(); state.activeCommentId = null; state.sketchMode = !state.sketchMode; state.drawing = state.sketchMode; syncDrawingControls(); redraw(); });
   $('#reviewsUndoBtn').addEventListener('click', () => { (state.sketchMode ? state.scratch : state.draft).pop(); redraw(); });
   $('#reviewsClearBtn').addEventListener('click', clearAnnotation);
-  canvas.addEventListener('pointerdown', event => { if (!state.drawing || !state.active || state.zHeld) return; event.preventDefault(); state.activeCommentId = null; state.pointerId = event.pointerId; canvas.setPointerCapture(event.pointerId); (state.sketchMode ? state.scratch : state.draft).push({ color: $('#reviewsColor').value, points: [pointerPoint(event)] }); redraw(); });
-  canvas.addEventListener('pointermove', event => { const strokes = state.sketchMode ? state.scratch : state.draft; if (state.pointerId !== event.pointerId || !strokes.length) return; const stroke = strokes.at(-1); const point = pointerPoint(event); const last = stroke.points.at(-1); if (Math.hypot((point[0] - last[0]) * canvas.clientWidth, (point[1] - last[1]) * canvas.clientHeight) > 2) { stroke.points.push(point); redraw(); } });
+  canvas.addEventListener('pointerdown', event => { if (!state.drawing || !state.active || state.zHeld || event.button !== 0) return; event.preventDefault(); state.activeCommentId = null; state.pointerId = event.pointerId; canvas.setPointerCapture(event.pointerId); (state.sketchMode ? state.scratch : state.draft).push({ tool: state.tool, color: $('#reviewsColor').value, points: [pointerPoint(event)] }); redraw(); });
+  canvas.addEventListener('pointermove', event => {
+    const strokes = state.sketchMode ? state.scratch : state.draft;
+    if (state.pointerId !== event.pointerId || !strokes.length) return;
+    const stroke = strokes.at(-1), point = shapePoint(stroke.points[0], pointerPoint(event), stroke.tool);
+    if (['line', 'arrow', 'rect', 'square', 'circle', 'ellipse'].includes(stroke.tool)) { stroke.points[1] = point; redraw(); return; }
+    const last = stroke.points.at(-1);
+    if (Math.hypot((point[0] - last[0]) * canvas.clientWidth, (point[1] - last[1]) * canvas.clientHeight) > 2) { stroke.points.push(point); redraw(); }
+  });
   const endStroke = event => { if (state.pointerId !== event.pointerId) return; state.pointerId = null; if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); };
   canvas.addEventListener('pointerup', endStroke); canvas.addEventListener('pointercancel', endStroke);
   $('#reviewsCommentForm').addEventListener('submit', async event => {

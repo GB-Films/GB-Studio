@@ -29,9 +29,10 @@ const server = http.createServer((request, response) => {
     page.on('pageerror', error => errors.push(error.message));
     await page.route('https://www.gstatic.com/firebasejs/**', route => route.abort());
     const url = `http://127.0.0.1:${server.address().port}`;
+    const reviewsUrl = `${url}/?app=reviews`;
     const unlock = async () => { await page.waitForTimeout(300); await page.evaluate(() => { document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true; window.STUDIO_PERMISSIONS = { storyboards: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true }; window.dispatchEvent(new Event('studio-auth-change')); }); };
     const enterReview = async () => { await page.locator('#reviewsNav').click(); await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Campaña test' }).click(); await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Montaje · V1' }).click(); await page.locator('#reviewsView').waitFor({ state: 'visible' }); };
-    await page.goto(url);
+    await page.goto(reviewsUrl);
     await unlock();
     await page.locator('#reviewsNav').click();
     assert.equal(await page.locator('#reviewsHome').isVisible(), true, 'Reviews opens on its project dashboard');
@@ -59,12 +60,108 @@ const server = http.createServer((request, response) => {
     const mediaBox = await page.locator('#reviewsMediaSurface').boundingBox();
     const stageBox = await page.locator('#reviewsStage').boundingBox();
     assert.ok(mediaBox.width <= stageBox.width && mediaBox.height <= stageBox.height, 'portrait media fits inside the review stage');
+    if (process.env.REVIEW_TOOLS_SCREENSHOT) {
+      await page.locator('#reviewsToolPicker').click();
+      await page.screenshot({ path: process.env.REVIEW_TOOLS_SCREENSHOT });
+      await page.locator('#reviewsToolPicker').click();
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#reviewsToolPicker').click();
+    const mobileToolMenu = await page.locator('#reviewsToolMenu').boundingBox();
+    if (process.env.REVIEW_TOOLS_MOBILE_SCREENSHOT) await page.screenshot({ path: process.env.REVIEW_TOOLS_MOBILE_SCREENSHOT, fullPage: true });
+    assert.ok(mobileToolMenu.x >= 0 && mobileToolMenu.x + mobileToolMenu.width <= 391, `drawing tools fit on a phone: ${JSON.stringify(mobileToolMenu)}`);
+    await page.locator('#reviewsToolPicker').click();
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.locator('#reviewsDrawBtn').click();
+    const inkAt = async targets => page.evaluate(points => {
+      const canvas = document.querySelector('#reviewsCanvas');
+      const { width, height } = canvas;
+      const pixels = canvas.getContext('2d').getImageData(0, 0, width, height).data;
+      const hits = points.map(() => 0);
+      let outside = 0;
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        if (pixels[(y * width + x) * 4 + 3] < 30) continue;
+        const hit = points.findIndex(([px, py]) => Math.hypot((x / width - px) * canvas.clientWidth, (y / height - py) * canvas.clientHeight) < 12);
+        if (hit < 0) outside++; else hits[hit]++;
+      }
+      return { hits, outside, backingWidth: width, logicalWidth: canvas.clientWidth };
+    }, targets);
+    const drawDot = async (x, y) => {
+      const bounds = await page.locator('#reviewsCanvas').boundingBox();
+      await page.mouse.click(bounds.x + bounds.width * x, bounds.y + bounds.height * y);
+    };
+    const drawSegment = async (x0, y0, x1, y1) => {
+      const bounds = await page.locator('#reviewsCanvas').boundingBox();
+      await page.mouse.move(bounds.x + bounds.width * x0, bounds.y + bounds.height * y0);
+      await page.mouse.down();
+      await page.mouse.move(bounds.x + bounds.width * x1, bounds.y + bounds.height * y1, { steps: 5 });
+      await page.mouse.up();
+    };
+    const chooseTool = async tool => {
+      await page.locator('#reviewsToolPicker').click();
+      await page.locator(`[data-review-tool="${tool}"]`).click();
+      assert.equal(await page.locator(`[data-review-tool="${tool}"]`).getAttribute('aria-pressed'), 'true');
+      assert.equal(await page.locator('#reviewsToolPicker').getAttribute('aria-expanded'), 'false');
+    };
+    const alphaAt = async (x, y) => page.evaluate(([px, py]) => {
+      const canvas = document.querySelector('#reviewsCanvas');
+      const data = canvas.getContext('2d').getImageData(Math.round(px * canvas.width), Math.round(py * canvas.height), 1, 1).data;
+      return data[3];
+    }, [x, y]);
+    await drawDot(.35, .38);
+    let ink = await inkAt([[.35, .38]]);
+    assert.ok(ink.hits[0] > 0 && ink.outside === 0, 'a stroke starts directly under the cursor');
+    await page.mouse.wheel(0, -300);
+    await page.waitForFunction(() => document.querySelector('#reviewsZoomValue').textContent !== '100%');
+    ink = await inkAt([[.35, .38]]);
+    assert.ok(ink.hits[0] > 0 && ink.outside === 0, 'existing strokes remain fixed to the media after zoom');
+    assert.ok(ink.backingWidth <= ink.logicalWidth * 2 + 1, 'zoom does not enlarge the canvas backing store');
+    await drawDot(.62, .55);
+    ink = await inkAt([[.35, .38], [.62, .55]]);
+    assert.ok(ink.hits.every(count => count > 0) && ink.outside === 0, 'new strokes stay aligned with the cursor after zoom');
+    await page.locator('#reviewsUndoBtn').click();
+    await page.locator('#reviewsUndoBtn').click();
+    await chooseTool('arrow');
+    await drawSegment(.25, .3, .65, .5);
+    assert.ok(await alphaAt(.45, .4) > 0, 'an arrow stays aligned while zoomed');
+    await page.locator('#reviewsUndoBtn').click();
+    await page.keyboard.press('H');
+    for (const [tool, sample] of [
+      ['line', [.45, .4]], ['rect', [.45, .2]], ['square', [.45, .2]],
+      ['circle', [.45, .2]], ['ellipse', [.45, .2]], ['arrow', [.45, .4]]
+    ]) {
+      await chooseTool(tool);
+      await drawSegment(.2, .2, .7, .6);
+      assert.ok(await alphaAt(...sample) > 0, `${tool} renders on the annotation canvas`);
+      await page.locator('#reviewsUndoBtn').click();
+      assert.equal(await alphaAt(...sample), 0, `${tool} can be undone`);
+    }
+    await chooseTool('highlighter');
+    await drawSegment(.2, .2, .7, .6);
+    assert.ok((await alphaAt(.45, .4)) > 0 && (await alphaAt(.45, .4)) < 180, 'highlighter is translucent');
+    await page.locator('#reviewsUndoBtn').click();
+    await chooseTool('pen');
+    await drawSegment(.2, .2, .7, .6);
+    assert.ok(await alphaAt(.45, .4) > 0);
+    await chooseTool('eraser');
+    await drawSegment(.45, .35, .45, .45);
+    assert.equal(await alphaAt(.45, .4), 0, 'eraser removes part of the current drawing');
+    assert.ok(await alphaAt(.3, .28) > 0, 'eraser keeps the rest of the stroke');
+    await page.locator('#reviewsUndoBtn').click();
+    assert.ok(await alphaAt(.45, .4) > 0, 'erasing can be undone');
+    await page.locator('#reviewsUndoBtn').click();
+    await chooseTool('rect');
+    await drawSegment(.12, .12, .32, .32);
+    await chooseTool('pen');
     const box = await page.locator('#reviewsCanvas').boundingBox();
     await page.mouse.move(box.x + box.width * .2, box.y + box.height * .2);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width * .7, box.y + box.height * .6, { steps: 8 });
     await page.mouse.up();
+    await chooseTool('highlighter');
+    await drawSegment(.2, .75, .7, .75);
+    await chooseTool('eraser');
+    await drawSegment(.45, .35, .45, .45);
     await page.locator('#reviewsCommentText').fill('Ajustar el encuadre');
     await page.locator('#reviewsCommentForm button[type=submit]').click();
     await page.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '1');
@@ -75,6 +172,7 @@ const server = http.createServer((request, response) => {
     }));
     assert.equal(stored[0].comments[0].text, 'Ajustar el encuadre');
     assert.ok(stored[0].comments[0].strokes[0].points.length > 1, 'the drawing is attached to the comment');
+    assert.deepEqual(stored[0].comments[0].strokes.map(stroke => stroke.tool), ['rect', 'pen', 'highlighter', 'eraser'], 'shapes, highlighter and eraser are saved with the comment');
     await page.locator('#reviewsBackVersions').click();
     await page.locator('#reviewsCreateVersion').click();
     await page.locator('#reviewsEntityTitle').fill('VFX · V1');
@@ -103,6 +201,8 @@ const server = http.createServer((request, response) => {
     assert.match(await page.locator('.reviews-comment-text').textContent(), /Ajustar el encuadre/);
     await page.locator('.reviews-comment-open').click();
     assert.equal(await page.locator('.reviews-comment.is-selected').count(), 1);
+    assert.equal(await alphaAt(.45, .4), 0, 'the saved eraser still removes ink after reload');
+    assert.ok((await alphaAt(.45, .75)) > 0 && (await alphaAt(.45, .75)) < 180, 'the saved highlighter keeps its transparency after reload');
     assert.equal(await page.evaluate(() => {
       const canvas = document.querySelector('#reviewsCanvas');
       const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
@@ -111,8 +211,8 @@ const server = http.createServer((request, response) => {
     await page.locator('.reviews-comment-actions button').first().click();
     await page.locator('.reviews-comment.is-resolved').waitFor();
     assert.equal(await page.locator('.reviews-comment.is-resolved').count(), 1);
-    await page.locator('#storyboardsNav').click();
-    assert.equal(await page.locator('#dashboardView').isVisible(), true);
+    await page.locator('#reviewsBackVersions').click();
+    assert.equal(await page.locator('#reviewsHome').isVisible(), true);
     await enterReview();
     assert.equal(await page.locator('#reviewsCommentCount').textContent(), '1');
     await page.locator('#reviewsLinkBtn').click();
@@ -129,8 +229,10 @@ const server = http.createServer((request, response) => {
     await page.waitForFunction(() => document.querySelector('#reviewsCount').textContent === '2');
     await page.waitForFunction(() => document.querySelector('#reviewsImage').naturalWidth === 360);
     assert.match(await page.locator('#reviewsImage').getAttribute('src'), /rlkey=abc123&raw=1/);
-    assert.equal(await page.locator('#reviewsOpenSource').isVisible(), true);
-    assert.match(await page.locator('#reviewsOpenSource').getAttribute('href'), /rlkey=abc123$/);
+    assert.equal(await page.locator('#reviewsOpenSource').count(), 0, 'the viewer does not link out to Dropbox');
+    assert.equal(await page.locator('#reviewsMediaDetails').count(), 0, 'the file subtitle is removed');
+    assert.equal(await page.locator('#reviewsDownloadBtn').isVisible(), false, 'download appears only for MP4');
+    assert.ok((await page.locator('.reviews-main-head').boundingBox()).height <= 60, 'the header leaves more height for the media');
     assert.equal(await page.locator('#reviewsMediaError').isVisible(), false);
     await page.locator('#reviewsLinkBtn').click();
     await page.locator('#reviewsLinkUrl').fill('https://www.dropbox.com/scl/fi/id/plano.jpg?rlkey=abc123&raw=1');
@@ -183,7 +285,7 @@ const server = http.createServer((request, response) => {
     assert.ok(await page.evaluate(() => document.querySelector('#reviewsVideo').duration) > .5, 'video fixture contains playable frames');
     await page.locator('#reviewsPlayBtn').click();
     await page.waitForFunction(() => document.querySelector('#reviewsVideo').currentTime > .05);
-    await page.locator('#storyboardsNav').click();
+    await page.locator('#reviewsBackVersions').click();
     assert.equal(await page.evaluate(() => document.querySelector('#reviewsVideo').paused), true, 'video pauses when leaving Reviews');
     await enterReview();
     await page.locator('#reviewsDrawBtn').click();
@@ -390,7 +492,7 @@ const server = http.createServer((request, response) => {
     try {
       await migration.route('**/reviews.js*', route => route.abort());
       await migration.route('https://www.gstatic.com/firebasejs/**', route => route.abort());
-      await migration.goto(url);
+      await migration.goto(reviewsUrl);
       await migration.evaluate(async () => {
         await new Promise((resolve, reject) => { const request = indexedDB.open('gb-studio-reviews-v1', 1); request.onupgradeneeded = () => { request.result.createObjectStore('items', { keyPath: 'id' }); request.result.createObjectStore('media'); }; request.onsuccess = () => { const db = request.result; const tx = db.transaction(['items', 'media'], 'readwrite'); tx.objectStore('items').put({ id: 'legacy-file', name: 'montaje-viejo.mp4', kind: 'video', size: 100, comments: [{ id: 'comment-1', text: 'Conservar comentario', time: 0, strokes: [], createdAt: '2026-01-01' }], createdAt: '2026-01-01', updatedAt: '2026-01-01' }); tx.objectStore('media').put(new Blob(['video original'], { type: 'video/mp4' }), 'legacy-file'); tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => reject(tx.error); }; request.onerror = () => reject(request.error); });
       });
@@ -401,6 +503,9 @@ const server = http.createServer((request, response) => {
       await migration.locator('#reviewsNav').click();
       await migration.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Reviews anteriores' }).click();
       assert.equal(await migration.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Review original' }).count(), 1, 'old records are grouped in a legacy review');
+      await migration.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Review original' }).click();
+      assert.equal(await migration.locator('.reviews-main-head #reviewsDownloadBtn').isVisible(), true, 'MP4 download is available in the compact header');
+      assert.equal(await migration.locator('#reviewsViewTools #reviewsDownloadBtn').count(), 0, 'download is not duplicated below the viewer');
       const migrated = await migration.evaluate(async () => new Promise(resolve => { const open = indexedDB.open('gb-studio-reviews-v1'); open.onsuccess = () => { const get = open.result.transaction('items').objectStore('items').get('legacy-file'); get.onsuccess = () => resolve(get.result); }; }));
       assert.ok(migrated.projectId && migrated.versionId && migrated.comments[0].text === 'Conservar comentario', 'migration preserves existing feedback');
       assert.equal(await migration.evaluate(async () => new Promise(resolve => { const open = indexedDB.open('gb-studio-reviews-v1'); open.onsuccess = () => { const get = open.result.transaction('media').objectStore('media').get('legacy-file'); get.onsuccess = () => resolve(get.result?.size || 0); }; })), 14, 'migration preserves the original local media');

@@ -2236,7 +2236,11 @@ $('#deletePhotoBtn').addEventListener('click', deleteSelected); $('#duplicatePho
 $('#dashboardCreateBtn').addEventListener('click', resetProject);
 $('#dashboardEmptyCreateBtn').addEventListener('click', resetProject);
 $('#storyboardsNav').addEventListener('click', () => { if (window.STUDIO_PERMISSIONS?.storyboards) showDashboard(); });
-document.querySelector('.brand').addEventListener('click', event => { event.preventDefault(); if (window.STUDIO_PERMISSIONS?.storyboards) showDashboard(); else window.STUDIO_SHOW_REVIEWS?.(); });
+document.querySelector('.brand').addEventListener('click', event => {
+  event.preventDefault();
+  if (document.documentElement.dataset.studioApp === 'reviews') window.STUDIO_SHOW_REVIEWS?.();
+  else if (window.STUDIO_PERMISSIONS?.storyboards) showDashboard();
+});
 $('#backToDashboardBtn').addEventListener('click', showDashboard);
 $('#manageVersionsBtn').addEventListener('click', openVersionsModal);
 $('#createVersionBtn').addEventListener('click', openVersionModal);
