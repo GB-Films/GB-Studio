@@ -159,6 +159,7 @@ let annotationToolMode = 'none';
 let zoom = 1;
 let toastTimer;
 let saveTimer;
+let pendingProjectSave = null;
 let pendingDeleteProjectId = null;
 let pendingDeleteVersionId = null;
 let pendingDeletePageIndex = null;
@@ -401,8 +402,11 @@ function saveProject() {
   const index = projects.findIndex(entry => entry.id === candidate.id);
   if (index === -1) projects.unshift(candidate);
   else projects[index] = candidate;
+  pendingProjectSave = candidate;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
+    pendingProjectSave = null;
+    saveTimer = null;
     try {
       localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(candidate));
@@ -413,6 +417,19 @@ function saveProject() {
     }
   }, 320);
 }
+
+window.addEventListener('pagehide', () => {
+  if (!pendingProjectSave) return;
+  const candidate = pendingProjectSave;
+  clearTimeout(saveTimer);
+  pendingProjectSave = null;
+  saveTimer = null;
+  try {
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(candidate));
+    localStorage.setItem(CURRENT_PROJECT_KEY, candidate.id);
+  } catch { writeIndexedDbSnapshot(); }
+});
 
 function persistProjects() {
   if (!window.STUDIO_PERMISSIONS?.storyboards) return;
@@ -2235,11 +2252,10 @@ $('#deletePhotoBtn').addEventListener('click', deleteSelected); $('#duplicatePho
 
 $('#dashboardCreateBtn').addEventListener('click', resetProject);
 $('#dashboardEmptyCreateBtn').addEventListener('click', resetProject);
-$('#storyboardsNav').addEventListener('click', () => { if (window.STUDIO_PERMISSIONS?.storyboards) showDashboard(); });
-document.querySelector('.brand').addEventListener('click', event => {
-  event.preventDefault();
-  if (document.documentElement.dataset.studioApp === 'reviews') window.STUDIO_SHOW_REVIEWS?.();
-  else if (window.STUDIO_PERMISSIONS?.storyboards) showDashboard();
+$('#storyboardsNav').addEventListener('click', () => {
+  if (!window.STUDIO_PERMISSIONS?.storyboards) return;
+  if (document.documentElement.dataset.studioApp === 'storyboards') showDashboard();
+  else window.location.assign('?app=storyboards');
 });
 $('#backToDashboardBtn').addEventListener('click', showDashboard);
 $('#manageVersionsBtn').addEventListener('click', openVersionsModal);
@@ -2297,10 +2313,14 @@ window.addEventListener('studio-auth-change', () => {
   $('#dashboardCreateBtn').hidden = !allowed;
   $('#dashboardEmptyCreateBtn').hidden = !allowed;
   if (allowed) {
-    if (document.documentElement.dataset.studioApp === 'storyboards' && !$('#dashboardView').hidden) renderDashboard();
+    if (document.documentElement.dataset.studioApp === 'storyboards') {
+      if (!$('#dashboardView').hidden) renderDashboard();
+      else if ($('#editorView').hidden) showDashboard();
+    }
     hydrateProjectsFromIndexedDb();
     return;
   }
+  if (document.documentElement.dataset.studioApp === 'home') return;
   // Permission changes can arrive while a storyboard editor is already open.
   // Save is denied by saveProject(), then move the visible workspace to an
   // authorized section or leave it behind the auth gate.

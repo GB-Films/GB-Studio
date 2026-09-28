@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="GB Studio Storyboards: organizá las tomas de tus proyectos." />
+    <meta name="description" content="GB Studio: Storyboards y Reviews para los proyectos de GB Films." />
     <meta name="theme-color" content="#111111" />
-    <title>GB Studio · Storyboards</title>
+    <title>GB Studio · Inicio</title>
     <script>
       const sharedReviewLink = new URLSearchParams(location.hash.slice(1));
       if ((sharedReviewLink.has('share') || sharedReviewLink.has('review')) && new URLSearchParams(location.search).get('app') !== 'reviews') {
@@ -13,16 +13,21 @@
         reviewsUrl.searchParams.set('app', 'reviews');
         location.replace(reviewsUrl.href);
       }
-      document.documentElement.dataset.studioApp = new URLSearchParams(location.search).get('app') === 'reviews' ? 'reviews' : 'storyboards';
+      const studioApp = new URLSearchParams(location.search).get('app');
+      document.documentElement.dataset.studioApp = studioApp === 'reviews' || studioApp === 'storyboards' ? studioApp : 'home';
       if (document.documentElement.dataset.studioApp === 'reviews') {
         document.title = 'GB Studio · Reviews';
         document.querySelector('meta[name="description"]').content = 'GB Studio Reviews: revisá fotos y videos con comentarios.';
+      } else if (document.documentElement.dataset.studioApp === 'storyboards') {
+        document.title = 'GB Studio · Storyboards';
+        document.querySelector('meta[name="description"]').content = 'GB Studio Storyboards: organizá las tomas de tus proyectos.';
       }
     </script>
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="stylesheet" href="styles.css?v=52" />
-    <link rel="stylesheet" href="reviews.css?v=10" />
+    <link rel="stylesheet" href="reviews.css?v=11" />
+    <link rel="stylesheet" href="home.css?v=1" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
   </head>
   <body>
@@ -38,8 +43,8 @@
     </div>
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="#" aria-label="GB Studio"><img class="brand-logo" src="assets/gb-films-logo-white.png" alt="GB Films" /><span class="brand-divider"></span><span class="brand-product">GB<br /><em>STUDIO</em></span></a>
-        <nav class="studio-nav" aria-label="Secciones de GB Studio"><button class="studio-nav-link is-active" id="storyboardsNav" type="button">Storyboards</button><button class="studio-nav-link" id="reviewsNav" type="button">Reviews</button></nav>
+        <a class="brand" href="./" aria-label="Inicio de GB Studio"><img class="brand-logo" src="assets/gb-films-logo-white.png" alt="GB Films" /><span class="brand-divider"></span><span class="brand-product">GB<br /><em>STUDIO</em></span></a>
+        <nav class="studio-nav" aria-label="Secciones de GB Studio"><a class="studio-nav-link studio-nav-home" id="homeNav" href="./">Inicio</a><button class="studio-nav-link" id="storyboardsNav" type="button">Storyboards</button><button class="studio-nav-link" id="reviewsNav" type="button">Reviews</button></nav>
         <div class="breadcrumbs"><span>PROYECTOS</span><b>/</b><strong id="breadcrumbTitle">Todos los proyectos</strong></div>
         <div class="top-actions"><button class="button button-ghost" id="backToDashboardBtn" type="button" hidden>← Proyectos</button><button class="button button-ghost" id="manageVersionsBtn" type="button" hidden>Versiones</button><button class="button button-ghost" id="createVersionBtn" type="button" hidden>＋ Crear versión</button><button class="button button-primary" id="exportBtn" type="button" hidden><span>↗</span> Exportar</button><button class="studio-settings-button" id="reviewsAdminBtn" type="button" aria-label="Configuración" title="Configuración" hidden>⚙</button><button class="account-button" id="accountButton" type="button" aria-label="Iniciar sesión con Google" aria-controls="profileModal" aria-expanded="false"><span class="account-avatar" id="accountAvatar">G</span><span class="account-label" id="accountLabel">Iniciar sesión</span></button></div>
       </header>
@@ -56,7 +61,23 @@
         </section>
       </div>
 
-      <main class="dashboard-view" id="dashboardView">
+      <main class="studio-home" id="studioHome">
+        <div class="studio-home-inner">
+          <section class="studio-home-hero" aria-labelledby="studioHomeTitle">
+            <div class="studio-home-overline"><span>GB FILMS</span><span>HERRAMIENTAS DE PRODUCCIÓN</span><span>01 / 02</span></div>
+            <div class="studio-home-hero-content"><div><span class="studio-home-kicker">TU ESPACIO DE TRABAJO</span><h1 id="studioHomeTitle">Todo el estudio.<br /><em>Un punto de partida.</em></h1><p>Elegí la herramienta para crear un storyboard o revisar material con tu equipo.</p></div><span class="studio-home-monogram" aria-hidden="true">GB<span>／</span></span></div>
+          </section>
+          <section class="studio-home-tools" aria-labelledby="studioHomeToolsTitle"><div class="studio-home-tools-header"><div><span class="studio-home-kicker">APLICACIONES</span><h2 id="studioHomeToolsTitle">¿Dónde trabajamos hoy?</h2></div><span>Seleccioná una herramienta para entrar ↘</span></div>
+            <div class="studio-home-cards">
+              <a class="studio-home-card studio-home-card-storyboards is-unavailable" id="homeStoryboardsLink" aria-disabled="true"><span class="studio-home-card-top"><span>01 / CREACIÓN</span><span class="studio-home-card-arrow" aria-hidden="true">↗</span></span><span class="studio-home-card-art studio-home-storyboard-art" aria-hidden="true"><span class="studio-home-shot"><i></i><i></i></span><span class="studio-home-shot"><i></i><i></i></span><span class="studio-home-shot"><i></i><i></i></span></span><span class="studio-home-card-bottom"><strong>Storyboards</strong><span>Organizá tomas, armá páginas y presentá la idea antes de producir.</span><small id="homeStoryboardsStatus">Verificando acceso…</small></span></a>
+              <a class="studio-home-card studio-home-card-reviews is-unavailable" id="homeReviewsLink" aria-disabled="true"><span class="studio-home-card-top"><span>02 / COLABORACIÓN</span><span class="studio-home-card-arrow" aria-hidden="true">↗</span></span><span class="studio-home-card-art studio-home-reviews-art" aria-hidden="true"><span class="studio-home-review-frame"><span class="studio-home-play">▶</span><span class="studio-home-timeline"></span></span><span class="studio-home-review-comment"><i></i><i></i></span></span><span class="studio-home-card-bottom"><strong>Reviews</strong><span>Revisá fotos y videos, compartí versiones y reuní las correcciones.</span><small id="homeReviewsStatus">Verificando acceso…</small></span></a>
+            </div>
+          </section>
+          <footer class="studio-home-footer"><span>GB STUDIO / GB FILMS</span><span>Ideas claras. Producciones mejores.</span></footer>
+        </div>
+      </main>
+
+      <main class="dashboard-view" id="dashboardView" hidden>
         <section class="dashboard-hero">
           <div class="dashboard-hero-copy"><div class="eyebrow"><span class="eyebrow-line"></span> GB FILMS · STORYBOARDS</div><h1>Storyboards para<br /><em>cada proyecto.</em></h1><p>Organizá las tomas, diseñá cada página y presentá tus ideas con claridad.</p></div>
           <button class="dashboard-create-card" id="dashboardCreateBtn" type="button"><span class="dashboard-create-mark">＋</span><span><strong>Nuevo proyecto</strong><small>Comenzá un storyboard desde cero</small></span><span class="dashboard-create-arrow">→</span></button>
@@ -223,8 +244,8 @@
     <div class="modal-backdrop" id="exportModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="exportTitle"><button class="modal-close" data-close-modal type="button" aria-label="Cerrar">×</button><div class="eyebrow"><span class="eyebrow-line"></span> SALIDA</div><h2 id="exportTitle">Exportar storyboard</h2><p class="modal-copy">Elegí si querés exportar la hoja actual, todas las páginas como imágenes o imprimir el storyboard completo.</p><div class="export-options"><button class="export-option" data-export="png" type="button"><span class="option-icon orange">▧</span><span><strong>Esta hoja como PNG</strong><small>Exporta el artboard tal como lo ves</small></span><span class="option-arrow">→</span></button><button class="export-option" data-export="png-all" type="button"><span class="option-icon orange">▤</span><span><strong>Todas las páginas como PNG</strong><small>Descarga un ZIP con una imagen PNG por página</small></span><span class="option-arrow">→</span></button><button class="export-option" data-export="jpg" type="button"><span class="option-icon blue">▧</span><span><strong>Esta hoja como JPG</strong><small>Archivo liviano para compartir</small></span><span class="option-arrow">→</span></button><button class="export-option" data-export="print" type="button"><span class="option-icon purple">▤</span><span><strong>PDF / Imprimir todas</strong><small>Plancha de rodaje con todas las páginas</small></span><span class="option-arrow">→</span></button></div></div></div>
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
-    <script src="app.js?v=68"></script>
-    <script src="reviews.js?v=12"></script>
+    <script src="app.js?v=69"></script>
+    <script src="reviews.js?v=13"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {
@@ -236,6 +257,6 @@
         appId: '1:475470109485:web:c4400a214f973223aa91a4',
       };
     </script>
-    <script type="module" src="auth.js?v=10"></script>
+    <script type="module" src="auth.js?v=11"></script>
   </body>
 </html>

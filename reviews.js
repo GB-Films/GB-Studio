@@ -938,7 +938,13 @@
     catch (error) { console.error(error); $('#reviewsPersonStatus').textContent = 'No se pudo eliminar el acceso.'; }
   });
 
-  $('#reviewsNav').addEventListener('click', () => isGuestReview() ? showReviews() : showReviewsHome());
+  $('#reviewsNav').addEventListener('click', () => {
+    if (!canEnterReviews()) return;
+    if (document.documentElement.dataset.studioApp === 'reviews') {
+      if (isGuestReview()) showReviews();
+      else showReviewsHome();
+    } else window.location.assign('?app=reviews');
+  });
   $('#reviewsBackVersions').addEventListener('click', () => showReviewsHome(state.projectId));
   $('#reviewsBackProjects').addEventListener('click', () => showReviewsHome());
   $('#reviewsCreateProject').addEventListener('click', () => openForm('project'));

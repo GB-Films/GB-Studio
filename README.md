@@ -1,6 +1,6 @@
 # GB Studio
 
-GB Studio tiene entradas independientes: [Storyboards](https://gb-films.github.io/StoryApp/) para organizar tomas y [Reviews](https://gb-films.github.io/StoryApp/?app=reviews) para corregir fotos y videos. Cada entrada muestra únicamente su plataforma; no hay navegación cruzada entre ellas. Los enlaces de Reviews compartidos anteriormente siguen abriendo el visor.
+La [página principal de GB Studio](https://gb-films.github.io/StoryApp/) reúne los accesos a [Storyboards](https://gb-films.github.io/StoryApp/?app=storyboards) para organizar tomas y [Reviews](https://gb-films.github.io/StoryApp/?app=reviews) para corregir fotos y videos. La cabecera permite volver al inicio o cambiar entre las herramientas habilitadas para la cuenta. Los enlaces de Reviews compartidos anteriormente siguen abriendo el visor.
 
 ## Reviews
 
