@@ -40,8 +40,9 @@
       transaction.onabort = () => reject(transaction.error || new Error('No se pudo guardar el archivo'));
     });
   }
-  const cloud = () => import('./reviews-cloud.js?v=5');
-  const canReview = key => window.STUDIO_ROLE === 'admin' || window.STUDIO_PERMISSIONS?.[key] === true;
+  const cloud = () => import('./reviews-cloud.js?v=6');
+  const isClient = () => window.STUDIO_ROLE !== 'admin' && (window.STUDIO_MIRA_ROLE === 'client' || window.STUDIO_PERMISSIONS?.reviewsClient === true);
+  const canReview = key => window.STUDIO_ROLE === 'admin' || (!(isClient() && ['reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'].includes(key)) && window.STUDIO_PERMISSIONS?.[key] === true);
   const canEnterReviews = () => canReview('reviewsView') || canReview('reviewsClient');
   async function saveRecord(record) {
     if (!canReview('reviewsEdit')) throw new Error('No tenés permiso para editar Mira.');
@@ -179,21 +180,27 @@
     $('#reviewsHome').classList.toggle('is-loading', waitingForProjects);
     $('#reviewsHomeLoading').hidden = !waitingForProjects;
     if (waitingForProjects) {
-      $('#reviewsHomeLoading').textContent = reviewsLibraryError || 'Cargando proyectos de Mira…';
+      $('#reviewsHomeLoading').textContent = reviewsLibraryError || (isClient() ? 'Cargando tus reviews…' : 'Cargando proyectos de Mira…');
       $('#reviewsHomeEmpty').hidden = true;
+      $('#reviewsHomeGrid').replaceChildren();
+      $('#reviewsCreateProject').hidden = true;
+      $('#reviewsCreateVersion').hidden = true;
+      $('#reviewsEmptyCreate').hidden = true;
+      $('#reviewsProjectContext').hidden = true;
+      $('#reviewsHomeTitle').textContent = isClient() ? 'Tus reviews' : 'Mira tus proyectos';
       return;
     }
-    const project = currentProject();
-    const clientOnly = canReview('reviewsClient') && !canReview('reviewsView');
+    const clientOnly = isClient();
+    const project = clientOnly ? null : currentProject();
     const grid = $('#reviewsHomeGrid'); grid.replaceChildren();
-    $('#reviewsHomeTitle').textContent = project ? project.title : 'Mira tus proyectos';
+    $('#reviewsHomeTitle').textContent = clientOnly ? 'Tus reviews' : project ? project.title : 'Mira tus proyectos';
     $('#reviewsHomeCopy').textContent = clientOnly ? 'Estas son las reviews que el equipo compartió con vos.' : project ? 'Elegí una review o creá otra para una etapa distinta. Cada review tiene sus archivos y comentarios.' : 'Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.';
     $('#reviewsCreateProject').hidden = Boolean(project) || !canReview('reviewsCreate');
     $('#reviewsCreateVersion').hidden = !canReview('reviewsCreate');
     $('#reviewsProjectContext').hidden = !project;
-    $('#reviewsHomeSectionLabel').textContent = project ? 'REVISIONES DE ESTE PROYECTO' : 'PROYECTOS';
-    const entries = project ? [...project.versions] : [...state.projects];
-    $('#reviewsHomeCount').textContent = `${entries.length} ${project ? entries.length === 1 ? 'review' : 'reviews' : entries.length === 1 ? 'proyecto' : 'proyectos'}`;
+    $('#reviewsHomeSectionLabel').textContent = clientOnly ? 'REVIEWS COMPARTIDAS' : project ? 'REVISIONES DE ESTE PROYECTO' : 'PROYECTOS';
+    const entries = clientOnly ? state.projects.flatMap(item => item.versions.map(version => ({ ...version, projectId: item.id, projectTitle: item.title }))) : project ? [...project.versions] : [...state.projects];
+    $('#reviewsHomeCount').textContent = `${entries.length} ${clientOnly || project ? entries.length === 1 ? 'review' : 'reviews' : entries.length === 1 ? 'proyecto' : 'proyectos'}`;
     $('#reviewsHomeEmpty').hidden = entries.length > 0;
     $('#reviewsEmptyCreate').textContent = project ? '＋ Crear review' : '＋ Crear proyecto';
     $('#reviewsHomeEmpty h2').textContent = clientOnly ? 'Todavía no hay reviews asignadas.' : project ? 'Todavía no hay reviews.' : 'Un lugar para cada devolución.';
@@ -202,8 +209,8 @@
     if (project) $('#reviewsProjectMeta').textContent = [project.client && `CLIENTE · ${project.client}`, project.agency && `AGENCIA · ${project.agency}`, project.director && `DIRECTOR · ${project.director}`, 'GRAN BERTA FILMS'].filter(Boolean).join('  /  ');
     for (const entry of entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
       const card = document.createElement('article'); card.className = 'reviews-home-card';
-      const open = document.createElement('button'); open.type = 'button'; open.className = `reviews-home-card-open ${project ? 'is-review-card' : 'is-project-card'}`;
-      if (!project) {
+      const open = document.createElement('button'); open.type = 'button'; open.className = `reviews-home-card-open ${clientOnly || project ? 'is-review-card' : 'is-project-card'}`;
+      if (!project && !clientOnly) {
         const cover = document.createElement('span'); cover.className = 'reviews-home-card-cover'; cover.setAttribute('aria-hidden', 'true');
         if (entry.coverType === 'image' && /^data:image\/jpeg;base64,/.test(entry.coverImage || '')) {
           cover.classList.add('is-image');
@@ -217,12 +224,12 @@
         open.append(cover);
       }
       const content = document.createElement('span'); content.className = 'reviews-home-card-content';
-      const tag = document.createElement('span'); tag.className = 'reviews-home-card-tag'; tag.textContent = project ? entry.category.toUpperCase() : (entry.client || 'SIN CLIENTE').toUpperCase();
+      const tag = document.createElement('span'); tag.className = 'reviews-home-card-tag'; tag.textContent = clientOnly ? entry.projectTitle : project ? entry.category.toUpperCase() : (entry.client || 'SIN CLIENTE').toUpperCase();
       const title = document.createElement('strong'); title.textContent = entry.title;
-      const count = document.createElement('small'); const records = project ? state.records.filter(record => record.versionId === entry.id) : state.records.filter(record => record.projectId === entry.id);
-      count.textContent = project ? `${records.length} archivo${records.length === 1 ? '' : 's'} · ${records.reduce((sum, record) => sum + record.comments.length, 0)} comentarios` : `${entry.versions.length} review${entry.versions.length === 1 ? '' : 's'} · ${records.length} archivos`;
+      const count = document.createElement('small'); const records = clientOnly || project ? state.records.filter(record => record.versionId === entry.id) : state.records.filter(record => record.projectId === entry.id);
+      count.textContent = clientOnly || project ? `${records.length} archivo${records.length === 1 ? '' : 's'} · ${records.reduce((sum, record) => sum + record.comments.length, 0)} comentarios` : `${entry.versions.length} review${entry.versions.length === 1 ? '' : 's'} · ${records.length} archivos`;
       content.append(tag, title, count); open.append(content);
-      open.addEventListener('click', () => project ? openVersion(entry.id) : showReviewsHome(entry.id));
+      open.addEventListener('click', () => { if (clientOnly) { state.projectId = entry.projectId; openVersion(entry.id); } else if (project) openVersion(entry.id); else showReviewsHome(entry.id); });
       const actions = document.createElement('div'); actions.className = 'reviews-home-card-actions';
       if (project && canReview('reviewsShare')) actions.append(cardAction('↗ Compartir', `Compartir ${entry.title}`, () => shareVersion(entry.id)));
       if (canReview('reviewsEdit')) {
@@ -239,7 +246,7 @@
     if (document.body.classList.contains('auth-locked')) return;
     if (!canEnterReviews()) return;
     showDashboard();
-    stopMedia(); state.active = null; state.projectId = projectId; state.versionId = null;
+    stopMedia(); state.active = null; state.projectId = isClient() ? null : projectId; state.versionId = null;
     $('#dashboardView').hidden = true; $('#reviewsHome').hidden = false; $('#reviewsView').hidden = true;
     $('#storyboardsNav').classList.remove('is-active'); $('#reviewsNav').classList.add('is-active');
     $('#breadcrumbTitle').textContent = currentProject()?.title || 'Mira';
@@ -1155,7 +1162,11 @@
     if (!window.STUDIO_SIGNED_IN) { $('#reviewsAdminModal').hidden = true; $('#reviewsPersonModal').hidden = true; }
     const accessKey = `${window.STUDIO_USER?.uid || ''}:${JSON.stringify(window.STUDIO_PERMISSIONS || {})}:${JSON.stringify(window.STUDIO_REVIEW_TOKENS || [])}`;
     const needsHydration = window.STUDIO_SIGNED_IN && canEnterReviews() && !isGuestReview() && accessKey !== hydratedUserUid;
-    if (needsHydration) { reviewsLibraryReady = false; reviewsLibraryError = ''; }
+    if (needsHydration) {
+      reviewsLibraryReady = false; reviewsLibraryError = '';
+      // A role change must not leave a previously opened staff file on screen.
+      if (isClient()) { clearViewer(); showReviewsHome(); }
+    }
     if (sharedReview && window.STUDIO_SIGNED_IN) {
       const existing = state.records.find(record => !record.ephemeral && record.source === 'dropbox' && record.sourceUrl === sharedReview.sourceUrl);
       if (existing && state.active?.id !== existing.id) selectRecord(existing.id);
@@ -1171,7 +1182,7 @@
         if (accessKey !== hydratedUserUid || !canEnterReviews()) return;
         if (window.STUDIO_ROLE !== 'admin') { state.projects = []; state.records = []; state.projectId = null; state.versionId = null; state.active = null; }
         const api = await cloud();
-        const clientOnly = canReview('reviewsClient') && !canReview('reviewsView');
+        const clientOnly = isClient();
         const [remoteProjects, remoteFiles] = clientOnly ? [[], []] : await Promise.all([api.listStaffProjects(), api.listStaffFiles()]);
         if (accessKey !== hydratedUserUid || !canEnterReviews()) return;
         const remoteProjectIds = new Set(remoteProjects.map(project => project.id));
@@ -1205,7 +1216,11 @@
         if (state.active) state.active = state.records.find(record => record.id === state.active.id) || state.active;
         reviewsLibraryReady = true;
         reviewsLibraryError = '';
-        if (!$('#reviewsHome').hidden) renderHome();
+        const assigned = clientOnly ? state.projects.flatMap(project => project.versions.map(version => ({ projectId: project.id, versionId: version.id }))) : [];
+        if (clientOnly && assigned.length === 1 && !$('#reviewsHome').hidden) {
+          state.projectId = assigned[0].projectId;
+          await openVersion(assigned[0].versionId);
+        } else if (!$('#reviewsHome').hidden) renderHome();
       }).catch(error => {
         if (accessKey !== hydratedUserUid) return;
         hydratedUserUid = null;

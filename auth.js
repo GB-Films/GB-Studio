@@ -122,6 +122,7 @@ function renderSignedOut() {
   updateHomeModules();
   window.STUDIO_SIGNED_IN = false;
   window.STUDIO_ROLE = null;
+  window.STUDIO_MIRA_ROLE = null;
   window.STUDIO_USER = null;
   window.STUDIO_PERMISSIONS = {};
   window.STUDIO_REVIEW_TOKENS = [];
@@ -140,6 +141,7 @@ function renderSignedIn(user, access) {
   closeProfile();
   window.STUDIO_SIGNED_IN = true;
   window.STUDIO_ROLE = access.role;
+  window.STUDIO_MIRA_ROLE = access.roles?.reviews || (access.permissions.reviewsClient ? 'client' : null);
   window.STUDIO_PERMISSIONS = access.permissions;
   window.STUDIO_REVIEW_TOKENS = access.reviewTokens || [];
   window.STUDIO_USER = user;
@@ -175,6 +177,7 @@ function renderNoAccess(user) {
   closeProfile();
   window.STUDIO_SIGNED_IN = false;
   window.STUDIO_ROLE = null;
+  window.STUDIO_MIRA_ROLE = null;
   window.STUDIO_PERMISSIONS = {};
   window.STUDIO_REVIEW_TOKENS = [];
   window.STUDIO_USER = user;
@@ -202,7 +205,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
     const [{ initializeApp }, { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut }, cloud] = await Promise.all([
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js'),
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js'),
-      import('./reviews-cloud.js?v=5'),
+      import('./reviews-cloud.js?v=6'),
     ]);
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
