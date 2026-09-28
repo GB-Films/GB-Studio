@@ -25,8 +25,8 @@
     </script>
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
-    <link rel="stylesheet" href="styles.css?v=55" />
-    <link rel="stylesheet" href="reviews.css?v=12" />
+    <link rel="stylesheet" href="styles.css?v=56" />
+    <link rel="stylesheet" href="reviews.css?v=13" />
     <link rel="stylesheet" href="home.css?v=6" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
   </head>
@@ -78,6 +78,7 @@
       </main>
 
       <main class="dashboard-view" id="dashboardView" hidden>
+        <div class="dashboard-loading" id="dashboardLoading" role="status" aria-live="polite" hidden>Cargando proyectos de Visto…</div>
         <section class="dashboard-hero">
           <div class="dashboard-hero-copy"><div class="eyebrow"><span class="eyebrow-line"></span> GB FILMS · VISTO</div><h1>Visualizá las tomas<br /><em>de cada proyecto.</em></h1><p>Organizá las tomas, diseñá cada página y presentá tus ideas con claridad.</p></div>
           <button class="dashboard-create-card" id="dashboardCreateBtn" type="button"><span class="dashboard-create-mark">＋</span><span><strong>Nuevo proyecto</strong><small>Comenzá un storyboard desde cero</small></span><span class="dashboard-create-arrow">→</span></button>
@@ -86,6 +87,7 @@
       </main>
 
       <main class="reviews-home" id="reviewsHome" hidden>
+        <div class="reviews-home-loading" id="reviewsHomeLoading" role="status" aria-live="polite" hidden>Cargando proyectos de Mira…</div>
         <div class="reviews-home-inner">
           <div class="reviews-home-top"><div><span class="eyebrow">GB STUDIO / MIRA</span><h1 id="reviewsHomeTitle">Mira tus proyectos</h1><p id="reviewsHomeCopy">Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.</p></div><button class="reviews-home-create" id="reviewsCreateProject" type="button">＋ Nuevo proyecto</button></div>
           <div class="reviews-home-context" id="reviewsProjectContext" hidden><button id="reviewsBackProjects" type="button">← Todos los proyectos</button><div id="reviewsProjectMeta"></div><button id="reviewsCreateVersion" type="button">＋ Nueva review</button></div>
@@ -270,8 +272,8 @@
     <div class="modal-backdrop" id="exportModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="exportTitle"><button class="modal-close" data-close-modal type="button" aria-label="Cerrar">×</button><div class="eyebrow"><span class="eyebrow-line"></span> SALIDA</div><h2 id="exportTitle">Exportar storyboard</h2><p class="modal-copy">Elegí si querés exportar la hoja actual, todas las páginas como imágenes o imprimir el storyboard completo.</p><div class="export-options"><button class="export-option" data-export="png" type="button"><span class="option-icon orange">▧</span><span><strong>Esta hoja como PNG</strong><small>Exporta el artboard tal como lo ves</small></span><span class="option-arrow">→</span></button><button class="export-option" data-export="png-all" type="button"><span class="option-icon orange">▤</span><span><strong>Todas las páginas como PNG</strong><small>Descarga un ZIP con una imagen PNG por página</small></span><span class="option-arrow">→</span></button><button class="export-option" data-export="jpg" type="button"><span class="option-icon blue">▧</span><span><strong>Esta hoja como JPG</strong><small>Archivo liviano para compartir</small></span><span class="option-arrow">→</span></button><button class="export-option" data-export="print" type="button"><span class="option-icon purple">▤</span><span><strong>PDF / Imprimir todas</strong><small>Plancha de rodaje con todas las páginas</small></span><span class="option-arrow">→</span></button></div></div></div>
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
-    <script src="app.js?v=70"></script>
-    <script src="reviews.js?v=18"></script>
+    <script src="app.js?v=71"></script>
+    <script src="reviews.js?v=19"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {

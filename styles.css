@@ -508,6 +508,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline-color:#0
 .auth-gate { position:fixed; z-index:100; inset:0; display:grid; place-items:center; padding:24px; background:#080808; background-image:linear-gradient(135deg,rgba(255,255,255,.06) 0 25%,transparent 25% 75%,rgba(255,255,255,.06) 75%),linear-gradient(45deg,transparent 0 25%,rgba(255,255,255,.035) 25% 75%,transparent 75%); background-size:420px 420px; }
 .auth-gate[hidden] { display:none; }
 .dashboard-create-card[hidden],#dashboardEmptyCreateBtn[hidden] { display:none!important; }
+.dashboard-view.is-loading > :not(.dashboard-loading) { visibility:hidden; }
+.dashboard-loading { min-height:calc(100dvh - 140px); display:grid; place-items:center; color:#666; font:500 11px 'DM Mono',monospace; letter-spacing:.08em; }
 
 /* Visto read-only keeps navigation and page zoom while removing every editing surface. */
 .visto-read-only .workspace-app { grid-template-columns:minmax(0,1fr); }
