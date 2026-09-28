@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="stylesheet" href="styles.css?v=50" />
-    <link rel="stylesheet" href="reviews.css?v=7" />
+    <link rel="stylesheet" href="reviews.css?v=8" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
   </head>
   <body>
@@ -59,7 +59,6 @@
           <div class="reviews-list-heading"><span>ARCHIVOS POR SECCIÓN</span><button id="reviewsAddSection" type="button">＋ Sección</button></div>
           <form class="reviews-section-form" id="reviewsSectionForm" hidden><input id="reviewsSectionName" type="text" maxlength="50" placeholder="Ej. Última versión" aria-label="Nombre de la sección" required /><button type="submit">Guardar</button><button id="reviewsSectionCancel" type="button" aria-label="Cancelar">×</button></form>
           <div class="reviews-list" id="reviewsList"></div>
-          <p class="reviews-storage-note">Solo se pueden vincular archivos de Dropbox. El equipo autorizado comparte la organización y los comentarios; los originales siguen en Dropbox.</p>
         </aside>
         <section class="reviews-main" aria-label="Visor de revisión">
           <div class="reviews-main-head"><div><span class="eyebrow">VISOR</span><h2 id="reviewsMediaTitle">Elegí un archivo</h2><p id="reviewsMediaDetails">Vinculá un archivo de Dropbox para empezar.</p></div><div class="reviews-main-actions"><button id="reviewsShareBtn" type="button" hidden>Copiar enlace de vista ↗</button><a id="reviewsOpenSource" href="#" target="_blank" rel="noopener noreferrer" hidden>Ver en Dropbox ↗</a><button class="reviews-remove-media" id="reviewsRemoveMedia" type="button" hidden>Quitar de Reviews</button></div></div>
