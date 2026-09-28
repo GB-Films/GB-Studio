@@ -113,6 +113,10 @@ const fakeFirebaseAuth = `
     await page.locator('#reviewsLinkKind').selectOption('image');
     await page.locator('#reviewsLinkForm button[type=submit]').click();
     await page.waitForFunction(() => document.querySelector('#reviewsCount').textContent === '1');
+    const drawingBar = await page.locator('#reviewsAnnotationBar').boundingBox();
+    const keyboardButton = await page.locator('#reviewsShortcutsBtn').boundingBox();
+    assert.ok(drawingBar.height < 55, 'the drawing controls and keyboard share one row on desktop');
+    assert.ok(Math.abs(drawingBar.x + drawingBar.width - keyboardButton.x - keyboardButton.width) < 16, 'the keyboard stays at the far right');
     assert.equal(await page.locator('.reviews-section-heading strong').first().textContent(), 'Última versión');
     assert.equal(await page.locator('.reviews-section').count(), 1, 'new reviews start with one section');
     assert.equal(await page.locator('.reviews-section-files[data-section-id="default"] .reviews-file').count(), 1, 'new files enter the default section');
@@ -139,7 +143,10 @@ const fakeFirebaseAuth = `
     await namedGuest.locator('#reviewsImage').waitFor({ state: 'visible' });
     await namedGuest.waitForFunction(() => document.querySelector('#reviewsImage').naturalWidth > 0);
     assert.equal(await namedGuest.locator('#reviewsView').isVisible(), true, 'the link opens the shared file directly');
-    assert.equal(await namedGuest.locator('#reviewsViewTools #reviewsScreenshotBtn').count(), 0, 'capture is not mixed with shortcuts');
+    assert.equal(await namedGuest.locator('#reviewsViewTools').count(), 0, 'the extra viewer toolbar is gone');
+    assert.equal(await namedGuest.locator('.reviews-main-head #reviewsZoomValue').isVisible(), true, 'zoom sits beside the filename');
+    assert.equal(await namedGuest.locator('#reviewsAnnotationBar #reviewsShortcutsBtn').isVisible(), true, 'shortcuts are at the end of the bottom toolbar');
+    assert.equal(await namedGuest.locator('#reviewsDrawBtn').isVisible(), false, 'guests see shortcuts without drawing controls before choosing an identity');
     assert.equal(await namedGuest.evaluate(() => Boolean(document.querySelector('#reviewsScreenshotBtn').compareDocumentPosition(document.querySelector('#reviewsDownloadBtn')) & Node.DOCUMENT_POSITION_FOLLOWING)), true, 'capture sits before download');
     await namedGuest.locator('#reviewsShortcutsBtn').click();
     assert.equal(await namedGuest.locator('#reviewsShortcutsMenu').isVisible(), true);
@@ -170,6 +177,7 @@ const fakeFirebaseAuth = `
     await namedGuest.locator('#reviewsGuestName').fill('Roberto');
     await namedGuest.locator('#reviewsGuestLogin').click();
     await namedGuest.locator('#reviewsCommentForm').waitFor({ state: 'visible' });
+    assert.equal(await namedGuest.locator('#reviewsDrawBtn').isVisible(), true);
     assert.match(await namedGuest.locator('#reviewsCommentIdentity').textContent(), /Roberto/);
     assert.match(await namedGuest.locator('#reviewsSketchBtn').getAttribute('title'), /no se guarda/);
     assert.equal(await namedGuest.locator('#reviewsToolMenu [data-review-tool]').count(), 3, 'brushes are in their own picker');

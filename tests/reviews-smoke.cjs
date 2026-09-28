@@ -517,7 +517,7 @@ const server = http.createServer((request, response) => {
       assert.equal(await migration.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Review original' }).count(), 1, 'old records are grouped in a legacy review');
       await migration.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Review original' }).click();
       assert.equal(await migration.locator('.reviews-main-head #reviewsDownloadBtn').isVisible(), true, 'MP4 download is available in the compact header');
-      assert.equal(await migration.locator('#reviewsViewTools #reviewsDownloadBtn').count(), 0, 'download is not duplicated below the viewer');
+      assert.equal(await migration.locator('#reviewsViewTools').count(), 0, 'the extra viewer toolbar is not present');
       const migrated = await migration.evaluate(async () => new Promise(resolve => { const open = indexedDB.open('gb-studio-reviews-v1'); open.onsuccess = () => { const get = open.result.transaction('items').objectStore('items').get('legacy-file'); get.onsuccess = () => resolve(get.result); }; }));
       assert.ok(migrated.projectId && migrated.versionId && migrated.comments[0].text === 'Conservar comentario', 'migration preserves existing feedback');
       assert.equal(await migration.evaluate(async () => new Promise(resolve => { const open = indexedDB.open('gb-studio-reviews-v1'); open.onsuccess = () => { const get = open.result.transaction('media').objectStore('media').get('legacy-file'); get.onsuccess = () => resolve(get.result?.size || 0); }; })), 14, 'migration preserves the original local media');
