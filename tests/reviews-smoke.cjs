@@ -366,8 +366,19 @@ const server = http.createServer((request, response) => {
     await page.waitForFunction(() => document.fullscreenElement?.id === 'reviewsView');
     await page.keyboard.press('F');
     await page.waitForFunction(() => !document.fullscreenElement);
+    await page.evaluate(() => {
+      navigator.mediaDevices.getDisplayMedia = async () => {
+        const capture = document.createElement('canvas'); capture.width = innerWidth; capture.height = innerHeight;
+        const context = capture.getContext('2d');
+        context.fillStyle = '#ff00ff'; context.fillRect(4, 4, 16, 16);
+        const media = document.querySelector('#reviewsMediaSurface').getBoundingClientRect();
+        context.fillStyle = '#547d8e'; context.fillRect(media.left, media.top, media.width, media.height);
+        return capture.captureStream(30);
+      };
+    });
+    const capturedFrame = page.waitForEvent('download');
     await page.locator('#reviewsScreenshotBtn').click();
-    await page.waitForFunction(() => document.querySelector('#reviewsCommentContext').textContent.includes('Dropbox no habilita'), null, { timeout: 3000 });
+    assert.match((await capturedFrame).suggestedFilename(), /fotograma-\d+\.png$/);
     await page.locator('#reviewsSketchBtn').click();
     const scratchBox = await page.locator('#reviewsCanvas').boundingBox();
     await page.mouse.move(scratchBox.x + 30, scratchBox.y + 30); await page.mouse.down(); await page.mouse.move(scratchBox.x + 100, scratchBox.y + 80, { steps: 4 }); await page.mouse.up();
