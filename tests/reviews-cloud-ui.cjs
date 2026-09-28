@@ -15,6 +15,7 @@ const server = http.createServer((request, response) => {
 const fakeCloud = `
   const load = key => JSON.parse(localStorage.getItem('test-cloud-' + key) || '[]');
   const save = (key, value) => localStorage.setItem('test-cloud-' + key, JSON.stringify(value));
+  const commentWatchers = new Map();
   const upsert = (key, value) => save(key, [...load(key).filter(item => item.id !== value.id), value]);
   export async function saveStaffProject(project) { upsert('projects', project); }
   export async function listStaffProjects() { return load('projects'); }
@@ -37,7 +38,22 @@ const fakeCloud = `
   }
   export async function updateShareMetadata() {}
   export async function upsertSharedFile() {}
-  export function watchComments(token, file, callback) { callback([]); return () => {}; }
+  export async function getSharedReview(token) { const share = load('published').find(item => item.token === token); if (!share) throw new Error('Unknown share'); return share; }
+  export async function guestIdentity() { return { uid: 'anonymous-test' }; }
+  export async function addSharedComment(token, fileId, comment, authorName) { save('comments', [...load('comments'), { ...comment, fileId, authorUid: 'anonymous-test', authorName }]); commentWatchers.get(fileId)?.(load('comments').filter(item => item.fileId === fileId)); }
+  export function watchComments(token, file, callback) { commentWatchers.set(file, callback); callback(load('comments').filter(comment => comment.fileId === file)); return () => commentWatchers.delete(file); }
+`;
+const fakeFirebaseApp = `export function initializeApp() { return {}; }`;
+const fakeFirebaseAuth = `
+  const auth = { currentUser: null }; let listener;
+  export class GoogleAuthProvider {}
+  export function getAuth() { return auth; }
+  export function onAuthStateChanged(instance, callback) { listener = callback; queueMicrotask(() => callback(instance.currentUser)); return () => { listener = null; }; }
+  export async function signInWithPopup(instance) {
+    const user = { uid: 'google-test', email: 'cliente@example.com', displayName: 'Cliente Google', emailVerified: true, providerData: [{ providerId: 'google.com' }] };
+    instance.currentUser = user; listener?.(user); return { user };
+  }
+  export async function signOut(instance) { instance.currentUser = null; listener?.(null); }
 `;
 
 (async () => {
@@ -47,8 +63,8 @@ const fakeCloud = `
     const context = await browser.newContext();
     let page = await context.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
-    await context.route('https://www.gstatic.com/firebasejs/**', route => route.abort());
-    await context.route('**/reviews-cloud.js?v=4', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: fakeCloud }));
+    await context.route('https://www.gstatic.com/firebasejs/**', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: route.request().url().includes('firebase-app.js') ? fakeFirebaseApp : fakeFirebaseAuth }));
+    await context.route('**/reviews-cloud.js?v=5', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: fakeCloud }));
     await context.route('https://www.dropbox.com/scl/fi/**', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"></svg>' }));
     const url = `http://127.0.0.1:${server.address().port}`;
     const reviewsUrl = `${url}/?app=reviews`;
@@ -61,7 +77,7 @@ const fakeCloud = `
       });
     };
     await page.goto(reviewsUrl);
-    assert.equal(await page.title(), 'GB Studio · Reviews');
+    assert.equal(await page.title(), 'GB Studio · Mira');
     assert.equal(await page.locator('#storyboardsNav').isVisible(), false, 'the Reviews entry does not show Storyboards navigation');
     assert.equal(await page.locator('#authGate').isVisible(), true, 'the studio starts behind the access gate');
     await authorize();
@@ -79,9 +95,66 @@ const fakeCloud = `
     await page.locator('#reviewsBackVersions').click();
     await page.locator('.reviews-home-card-actions button[aria-label="Compartir Montaje · V1"]').click();
     await page.locator('#reviewsCopyModal').waitFor({ state: 'visible' });
-    assert.match(await page.locator('#reviewsCopyInput').inputValue(), /#share=A{43}$/);
+    const shareUrl = await page.locator('#reviewsCopyInput').inputValue();
+    assert.match(shareUrl, /\?app=reviews#share=A{43}&file=/);
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-published'))[0].fileCount), 1);
     await page.locator('#reviewsCopyDone').click();
+    const namedGuest = await context.newPage(); namedGuest.on('pageerror', error => errors.push(error.message));
+    await namedGuest.goto(shareUrl);
+    await namedGuest.locator('#reviewsImage').waitFor({ state: 'visible' });
+    await namedGuest.waitForFunction(() => document.querySelector('#reviewsImage').naturalWidth > 0);
+    assert.equal(await namedGuest.locator('#reviewsView').isVisible(), true, 'the link opens the shared file directly');
+    assert.equal(await namedGuest.locator('#authGate').isVisible(), false, 'viewing requires no sign-in');
+    assert.equal(await namedGuest.locator('#reviewsGuestName').isVisible(), true);
+    assert.equal(await namedGuest.locator('#reviewsGuestGoogle').isVisible(), true);
+    assert.equal(await namedGuest.locator('#reviewsRemoveMedia').isVisible(), false);
+    assert.equal(await namedGuest.locator('#reviewsShareBtn').isVisible(), false);
+    if (process.env.REVIEW_CLIENT_SCREENSHOT) await namedGuest.screenshot({ path: process.env.REVIEW_CLIENT_SCREENSHOT, fullPage: true });
+    await namedGuest.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await namedGuest.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'the shared review fits a phone');
+    assert.equal(await namedGuest.locator('#reviewsGuestGoogle').isVisible(), true);
+    await namedGuest.setViewportSize({ width: 1280, height: 720 });
+    await namedGuest.locator('#reviewsGuestName').fill('Roberto');
+    await namedGuest.locator('#reviewsGuestLogin').click();
+    await namedGuest.locator('#reviewsCommentForm').waitFor({ state: 'visible' });
+    assert.match(await namedGuest.locator('#reviewsCommentIdentity').textContent(), /Roberto/);
+    await namedGuest.locator('#reviewsCommentText').fill('Ajustar color');
+    await namedGuest.locator('#reviewsCommentForm button[type=submit]').click();
+    await namedGuest.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '1');
+    assert.match(await namedGuest.locator('.reviews-comment-meta').textContent(), /Roberto/);
+    assert.equal(await namedGuest.locator('.reviews-comment-actions').count(), 0, 'a named guest cannot delete or resolve comments');
+    await namedGuest.close();
+    const googleGuest = await context.newPage(); googleGuest.on('pageerror', error => errors.push(error.message));
+    await googleGuest.goto(shareUrl);
+    await googleGuest.locator('#reviewsGuestGoogle').click();
+    await googleGuest.locator('#reviewsCommentForm').waitFor({ state: 'visible' });
+    assert.match(await googleGuest.locator('#reviewsCommentIdentity').textContent(), /Cliente Google/);
+    assert.equal(await googleGuest.locator('#reviewsRemoveMedia').isVisible(), false);
+    await googleGuest.locator('#reviewsCommentText').fill('Revisar final');
+    await googleGuest.locator('#reviewsCommentForm button[type=submit]').click();
+    await googleGuest.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '2');
+    assert.equal(await googleGuest.locator('.reviews-comment-actions').count(), 0, 'a Google review guest cannot delete comments');
+    assert.deepEqual(await googleGuest.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-comments')).map(comment => comment.authorName)), ['Roberto', 'Cliente Google']);
+    await googleGuest.close();
+    await page.evaluate(() => {
+      const shares = JSON.parse(localStorage.getItem('test-cloud-published'));
+      const second = { ...shares[0], token: 'B'.repeat(43), files: [...shares[0].files, {
+        id: 'client-video', name: 'revision.webm', kind: 'video', source: 'dropbox',
+        sourceUrl: 'https://www.dropbox.com/scl/fi/test/revision.webm?rlkey=test', comments: []
+      }] };
+      localStorage.setItem('test-cloud-published', JSON.stringify([...shares, second]));
+    });
+    const videoGuest = await context.newPage(); videoGuest.on('pageerror', error => errors.push(error.message));
+    await videoGuest.goto(`${reviewsUrl}#share=${'B'.repeat(43)}&file=client-video`);
+    await videoGuest.locator('#reviewsDownloadBtn').waitFor({ state: 'visible' });
+    assert.equal(await videoGuest.locator('#reviewsMediaTitle').textContent(), 'revision.webm', 'the file in the shared link opens instead of the first file');
+    assert.equal(await videoGuest.locator('#authGate').isVisible(), false);
+    assert.equal(await videoGuest.locator('#reviewsRemoveMedia').isVisible(), false);
+    await videoGuest.evaluate(() => { HTMLAnchorElement.prototype.click = function () { window.clientDownload = this.href; }; });
+    await videoGuest.locator('#reviewsDownloadBtn').click();
+    assert.match(await videoGuest.evaluate(() => window.clientDownload), /revision\.webm\?rlkey=test&dl=1$/, 'client download requests the original video');
+    await videoGuest.close();
+    await page.evaluate(() => localStorage.setItem('test-cloud-published', JSON.stringify(JSON.parse(localStorage.getItem('test-cloud-published')).filter(share => share.token !== 'B'.repeat(43)))));
     await page.locator('#reviewsAdminBtn').click();
     await page.locator('#reviewsAdminModal').waitFor({ state: 'visible' });
     await page.locator('#reviewsAddPerson').click();
@@ -149,7 +222,10 @@ const fakeCloud = `
     await page.locator('#reviewsHomeGrid .reviews-home-card-open').click();
     await page.locator('#reviewsHomeGrid .reviews-home-card-open').click();
     await page.locator('#reviewsCommentForm').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#reviewsRemoveMedia').isVisible(), false, 'an assigned client cannot remove files');
+    assert.equal(await page.locator('.reviews-comment-actions').count(), 0, 'an assigned client cannot delete or resolve comments');
+    assert.equal(await page.locator('.reviews-file[draggable="true"]').count(), 0, 'an assigned client cannot rearrange files');
     assert.deepEqual(errors, []);
-    console.log('Cloud UI passed: project/file sync, share link, and restore from another local state.');
+    console.log('Cloud UI passed: shared-file links, guest and Google comments, read-only client access, video download, and project sync.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
