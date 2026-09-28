@@ -233,6 +233,7 @@ body.legacy-public-review .reviews-view { grid-template-columns:minmax(0,1fr) mi
 .reviews-range-marker.is-in { background:#8fd8ac; }
 .reviews-range-marker.is-out { background:#ffab89; }
 .reviews-playback-tools,.reviews-view-tools { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-height:39px; padding:6px 20px; border-top:1px solid #333; background:#191919; color:#aaa; font:9px 'DM Mono',monospace; }
+.reviews-view-tools { position:relative; justify-content:space-between; }
 .reviews-playback-tools button,.reviews-view-tools button { padding:6px 8px; border:1px solid #555; background:#252525; color:#ddd; font:9px 'DM Mono',monospace; }
 .reviews-playback-tools button:hover,.reviews-view-tools button:hover { border-color:#fff; color:#fff; }
 .reviews-playback-tools button span { color:#ffab89; }
@@ -241,7 +242,17 @@ body.legacy-public-review .reviews-view { grid-template-columns:minmax(0,1fr) mi
 .reviews-playback-tools select,.reviews-playback-tools input { width:60px; padding:5px; border:1px solid #555; background:#111; color:#fff; font:10px 'DM Mono',monospace; }
 .reviews-playback-tools input { width:70px; }
 .reviews-view-tools #reviewsZoomValue { min-width:34px; text-align:center; }
-.reviews-view-tools #reviewsScreenshotBtn { margin-left:auto; }
+.reviews-shortcuts { position:relative; }
+.reviews-shortcuts #reviewsShortcutsBtn { display:grid; place-items:center; width:29px; height:27px; padding:3px; border-radius:4px; }
+.reviews-shortcuts #reviewsShortcutsBtn[aria-expanded="true"] { border-color:#fff; color:#fff; }
+.reviews-shortcuts #reviewsShortcutsBtn svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+.reviews-shortcuts-menu { position:absolute; right:0; bottom:calc(100% + 8px); z-index:12; display:grid; gap:2px; width:min(270px,calc(100vw - 24px)); max-height:min(360px,70vh); overflow:auto; padding:11px; border:1px solid #666; border-radius:6px; background:#242424; box-shadow:0 14px 36px #0009; color:#eee; }
+.reviews-shortcuts-menu[hidden] { display:none; }
+.reviews-shortcuts-menu>strong { padding:4px 5px 8px; color:#fff; font:600 11px 'Space Grotesk',sans-serif; }
+.reviews-shortcuts-menu>button,.reviews-shortcuts-menu>div { display:flex; align-items:center; gap:10px; width:100%; min-height:29px; padding:5px; border:0; background:none; color:#ddd; text-align:left; font:10px 'Space Grotesk',sans-serif; }
+.reviews-shortcuts-menu>button:hover,.reviews-shortcuts-menu>button:focus-visible { background:#383838; }
+.reviews-shortcuts-menu kbd { flex:0 0 72px; padding:4px 5px; border:1px solid #555; border-radius:3px; color:#fff; text-align:center; font:9px 'DM Mono',monospace; }
+.reviews-shortcuts-menu>div:first-of-type { margin-top:4px; border-top:1px solid #444; padding-top:9px; }
 .reviews-hud-restore { position:absolute; right:15px; bottom:15px; z-index:5; padding:8px 11px; border:1px solid #777; background:#171717; color:#fff; font:10px 'DM Mono',monospace; }
 body.reviews-hud-hidden .topbar,body.reviews-hud-hidden .reviews-library,body.reviews-hud-hidden .reviews-comments,body.reviews-hud-hidden .reviews-main-head,body.reviews-hud-hidden .reviews-timeline,body.reviews-hud-hidden .reviews-playback-tools,body.reviews-hud-hidden .reviews-view-tools,body.reviews-hud-hidden .reviews-annotation-bar { display:none!important; }
 body.reviews-hud-hidden .reviews-view { grid-template-columns:minmax(0,1fr); height:100dvh; min-height:0; }

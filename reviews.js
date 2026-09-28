@@ -357,6 +357,8 @@
     $('#reviewsLinkBtn').hidden = guest || !canReview('reviewsEdit');
     $('#reviewsAddSection').hidden = guest || !canReview('reviewsEdit');
     $('#reviewsShareBtn').hidden = guest || state.active?.source !== 'dropbox' || !canReview('reviewsShare');
+    $('#reviewsScreenshotBtn').hidden = !state.active || state.active.kind === 'model';
+    $('#reviewsScreenshotBtn').title = state.active?.source === 'dropbox' ? 'Guardar captura PNG · elegí Esta pestaña en el permiso' : 'Guardar captura PNG';
     $('#reviewsDownloadBtn').hidden = !isVideo();
     $('#reviewsCommentStorageNote').textContent = state.shareToken || currentVersion()?.shareToken ? 'Los comentarios y dibujos de esta review se comparten con quienes tengan el enlace.' : 'Este comentario se guarda solo en este navegador hasta que compartas la review.';
     renderCommentList();
@@ -631,7 +633,7 @@
     $('#reviewsShareBtn').hidden = record.source !== 'dropbox' || isGuestReview() || !canReview('reviewsShare');
     $('#reviewsEmpty').hidden = true; $('#reviewsMediaSurface').hidden = false;
     $('#reviewsAnnotationBar').hidden = false; $('#reviewsCommentForm').hidden = false; $('#reviewsRemoveMedia').hidden = false;
-    $('#reviewsViewTools').hidden = false; $('#reviewsPlaybackTools').hidden = record.kind !== 'video'; $('#reviewsDownloadBtn').hidden = !isVideo();
+    $('#reviewsViewTools').hidden = false; $('#reviewsPlaybackTools').hidden = record.kind !== 'video'; $('#reviewsScreenshotBtn').hidden = record.kind === 'model'; $('#reviewsDownloadBtn').hidden = !isVideo();
     $('#reviewsTimeline').hidden = record.kind !== 'video';
     $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false');
     canvas.classList.remove('is-drawing');
@@ -727,7 +729,7 @@
     stopMedia(); state.active = null; localStorage.removeItem(ACTIVE_KEY);
     $('#reviewsMediaTitle').textContent = 'Elegí un archivo'; $('#reviewsMediaTitle').removeAttribute('title');
     $('#reviewsEmpty').hidden = false; $('#reviewsMediaSurface').hidden = true; $('#reviewsTimeline').hidden = true;
-    $('#reviewsAnnotationBar').hidden = true; $('#reviewsCommentForm').hidden = true; $('#reviewsRemoveMedia').hidden = true; $('#reviewsShareBtn').hidden = true; $('#reviewsDownloadBtn').hidden = true; $('#reviewsMediaError').hidden = true; $('#reviewsViewTools').hidden = true; $('#reviewsPlaybackTools').hidden = true;
+    $('#reviewsAnnotationBar').hidden = true; $('#reviewsCommentForm').hidden = true; $('#reviewsRemoveMedia').hidden = true; $('#reviewsShareBtn').hidden = true; $('#reviewsScreenshotBtn').hidden = true; $('#reviewsDownloadBtn').hidden = true; $('#reviewsMediaError').hidden = true; $('#reviewsViewTools').hidden = true; $('#reviewsPlaybackTools').hidden = true;
     showStatus('Elegí un archivo para ver sus comentarios.'); renderList(); renderCommentList();
   }
   async function removeActive() {
@@ -825,24 +827,69 @@
     const comment = state.active.comments.find(entry => Math.abs(entry.time - target) < .001);
     if (comment) selectComment(comment.id);
   }
+  function pngBlob(output) {
+    return new Promise((resolve, reject) => output.toBlob(blob => blob ? resolve(blob) : reject(new Error('No se pudo generar el PNG.')), 'image/png'));
+  }
+  async function captureVisibleTab() {
+    if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Este navegador no permite capturar la pestaña. Probá con Chrome o Edge.');
+    // A marker outside the viewer verifies that the user actually chose this tab.
+    const marker = document.createElement('span');
+    Object.assign(marker.style, { position: 'fixed', left: '4px', top: '4px', width: '16px', height: '16px', background: '#ff00ff', zIndex: '2147483647', pointerEvents: 'none' });
+    (document.fullscreenElement || document.body).append(marker);
+    let stream, preview;
+    try {
+      showStatus('Elegí «Esta pestaña» en el permiso del navegador para guardar el fotograma.');
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include' });
+      const surface = stream.getVideoTracks()[0]?.getSettings().displaySurface;
+      if (surface && surface !== 'browser') throw new Error('Elegí «Esta pestaña», no otra ventana o pantalla.');
+      preview = document.createElement('video'); preview.muted = true; preview.playsInline = true; preview.srcObject = stream;
+      await preview.play();
+      if (!preview.videoWidth || !preview.videoHeight) throw new Error('No se recibió la imagen de la pestaña.');
+      await new Promise(resolve => setTimeout(resolve, 120));
+      const scaleX = preview.videoWidth / innerWidth, scaleY = preview.videoHeight / innerHeight;
+      const check = document.createElement('canvas'); check.width = check.height = 1;
+      check.getContext('2d').drawImage(preview, 10 * scaleX, 10 * scaleY, 4 * scaleX, 4 * scaleY, 0, 0, 1, 1);
+      const [red, green, blue] = check.getContext('2d').getImageData(0, 0, 1, 1).data;
+      if (red < 190 || green > 90 || blue < 190) throw new Error('No se detectó esta pestaña. Seleccionala en el permiso e intentá de nuevo.');
+      marker.remove();
+      await new Promise(resolve => setTimeout(resolve, 120));
+      const media = $('#reviewsMediaSurface').getBoundingClientRect(), stage = $('#reviewsStage').getBoundingClientRect();
+      const left = Math.max(0, media.left, stage.left), top = Math.max(0, media.top, stage.top);
+      const right = Math.min(innerWidth, media.right, stage.right), bottom = Math.min(innerHeight, media.bottom, stage.bottom);
+      if (right <= left || bottom <= top) throw new Error('El archivo no está visible para capturarlo.');
+      const output = document.createElement('canvas'); output.width = Math.round((right - left) * scaleX); output.height = Math.round((bottom - top) * scaleY);
+      output.getContext('2d').drawImage(preview, left * scaleX, top * scaleY, (right - left) * scaleX, (bottom - top) * scaleY, 0, 0, output.width, output.height);
+      return pngBlob(output);
+    } finally {
+      marker.remove();
+      stream?.getTracks().forEach(track => track.stop());
+      if (preview) preview.srcObject = null;
+    }
+  }
   async function screenshot() {
     if (!state.active) return;
-    const source = state.active.kind === 'model' ? state.model?.canvas : isVideo() ? video : image;
+    const record = state.active;
+    const source = isVideo() ? video : image;
     const width = source?.videoWidth || source?.naturalWidth || source?.width;
     const height = source?.videoHeight || source?.naturalHeight || source?.height;
     if (!width || !height) { showStatus('Esperá a que el archivo termine de cargar para capturar el cuadro.'); return; }
-    const output = document.createElement('canvas'); output.width = width; output.height = height;
-    const outputContext = output.getContext('2d');
     try {
-      outputContext.drawImage(source, 0, 0, width, height);
-      if (!canvas.hidden) outputContext.drawImage(canvas, 0, 0, width, height);
-      const blob = await new Promise(resolve => output.toBlob(resolve, 'image/png'));
-      if (!blob) throw new Error('El navegador bloqueó la captura del archivo externo.');
+      const output = document.createElement('canvas'); output.width = width; output.height = height;
+      const context = output.getContext('2d');
+      context.drawImage(source, 0, 0, width, height);
+      if (!canvas.hidden) context.drawImage(canvas, 0, 0, width, height);
+      let blob;
+      try { context.getImageData(0, 0, 1, 1); blob = await pngBlob(output); }
+      catch (error) { if (error.name !== 'SecurityError') throw error; blob = await captureVisibleTab(); }
+      if (state.active?.id !== record.id) return;
       const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${state.active.name.replace(/\.[^.]+$/, '')}-${isVideo() ? `fotograma-${frameNumber()}` : 'captura'}.png`; anchor.click();
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${record.name.replace(/\.[^.]+$/, '')}-${record.kind === 'video' ? `fotograma-${frameNumber()}` : 'captura'}.png`; anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       showStatus('Captura PNG descargada.');
-    } catch (error) { showStatus('No se pudo capturar este archivo externo: Dropbox no habilita la lectura de sus píxeles desde esta página.'); console.error(error); }
+    } catch (error) {
+      showStatus(error.name === 'NotAllowedError' ? 'Captura cancelada. Permití compartir esta pestaña para guardar el fotograma.' : error.message || 'No se pudo guardar la captura.');
+      if (error.name !== 'NotAllowedError') console.error(error);
+    }
   }
   function downloadVideo() {
     if (!isVideo()) return;
@@ -855,7 +902,8 @@
     try { if (document.fullscreenElement) await document.exitFullscreen(); else await $('#reviewsView').requestFullscreen(); }
     catch { showStatus('El navegador no permitió activar pantalla completa.'); }
   }
-  function toggleHud() { const hidden = document.body.classList.toggle('reviews-hud-hidden'); $('#reviewsHudRestore').hidden = !hidden; requestAnimationFrame(fitSurface); }
+  function closeShortcuts() { $('#reviewsShortcutsMenu').hidden = true; $('#reviewsShortcutsBtn').setAttribute('aria-expanded', 'false'); }
+  function toggleHud() { closeShortcuts(); const hidden = document.body.classList.toggle('reviews-hud-hidden'); $('#reviewsHudRestore').hidden = !hidden; requestAnimationFrame(fitSurface); }
   function isEditingText(target) { return target?.closest?.('input,textarea,select,[contenteditable="true"]'); }
 
   const reviewPermissionLabels = [
@@ -1266,7 +1314,14 @@
   $('#reviewsFullscreenBtn').addEventListener('click', toggleFullscreen);
   $('#reviewsHudBtn').addEventListener('click', toggleHud);
   $('#reviewsHudRestore').addEventListener('click', toggleHud);
-  document.addEventListener('fullscreenchange', () => { $('#reviewsFullscreenBtn').textContent = document.fullscreenElement ? 'F · Salir de pantalla completa' : 'F · Pantalla completa'; requestAnimationFrame(fitSurface); });
+  $('#reviewsShortcutsBtn').addEventListener('click', () => {
+    const menu = $('#reviewsShortcutsMenu'); menu.hidden = !menu.hidden;
+    $('#reviewsShortcutsBtn').setAttribute('aria-expanded', String(!menu.hidden));
+  });
+  $('#reviewsShortcutsMenu').addEventListener('click', event => { if (event.target.closest('button')) closeShortcuts(); });
+  document.addEventListener('pointerdown', event => { if (!event.target.closest('.reviews-shortcuts')) closeShortcuts(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeShortcuts(); });
+  document.addEventListener('fullscreenchange', () => { $('#reviewsFullscreenBtn span').textContent = document.fullscreenElement ? 'Salir de pantalla completa' : 'Pantalla completa'; requestAnimationFrame(fitSurface); });
   document.addEventListener('dragover', event => { if (!$('#reviewsView').hidden && event.dataTransfer?.types.includes('Files')) event.preventDefault(); });
   document.addEventListener('drop', event => { if (!$('#reviewsView').hidden && event.dataTransfer?.files?.length) { event.preventDefault(); showStatus('En Mira solo podés vincular archivos ya compartidos desde Dropbox.'); } });
   $('#reviewsStage').addEventListener('wheel', event => { if (!state.active || state.active.kind === 'model') return; event.preventDefault(); zoomAt(Math.exp(-event.deltaY * .002), event.clientX, event.clientY); }, { passive: false });

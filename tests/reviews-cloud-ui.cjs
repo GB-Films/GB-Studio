@@ -3,6 +3,14 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
+const fulfillVideo = (route, base64) => {
+  const body = Buffer.from(base64, 'base64');
+  const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers().range || '');
+  if (!range) return route.fulfill({ status: 200, contentType: 'video/webm', headers: { 'accept-ranges': 'bytes' }, body });
+  const start = Math.min(Number(range[1]), body.length - 1);
+  const end = range[2] ? Math.min(Number(range[2]), body.length - 1) : body.length - 1;
+  return route.fulfill({ status: 206, contentType: 'video/webm', headers: { 'accept-ranges': 'bytes', 'content-range': `bytes ${start}-${end}/${body.length}` }, body: body.subarray(start, end + 1) });
+};
 
 const root = path.join(__dirname, '..');
 const server = http.createServer((request, response) => {
@@ -76,6 +84,19 @@ const fakeFirebaseAuth = `
         window.dispatchEvent(new Event('studio-auth-change'));
       });
     };
+    const mockTabCapture = async target => target.evaluate(() => {
+      window.captureRequests = 0;
+      navigator.mediaDevices.getDisplayMedia = async () => {
+        window.captureRequests += 1;
+        const capture = document.createElement('canvas'); capture.width = innerWidth; capture.height = innerHeight;
+        const context = capture.getContext('2d');
+        context.fillStyle = '#121212'; context.fillRect(0, 0, capture.width, capture.height);
+        context.fillStyle = '#ff00ff'; context.fillRect(4, 4, 16, 16);
+        const media = document.querySelector('#reviewsMediaSurface').getBoundingClientRect();
+        context.fillStyle = '#26a676'; context.fillRect(media.left, media.top, media.width, media.height);
+        return capture.captureStream(30);
+      };
+    });
     await page.goto(reviewsUrl);
     assert.equal(await page.title(), 'GB Studio · Mira');
     assert.equal(await page.locator('#storyboardsNav').isVisible(), false, 'the Reviews entry does not show Storyboards navigation');
@@ -118,6 +139,20 @@ const fakeFirebaseAuth = `
     await namedGuest.locator('#reviewsImage').waitFor({ state: 'visible' });
     await namedGuest.waitForFunction(() => document.querySelector('#reviewsImage').naturalWidth > 0);
     assert.equal(await namedGuest.locator('#reviewsView').isVisible(), true, 'the link opens the shared file directly');
+    assert.equal(await namedGuest.locator('#reviewsViewTools #reviewsScreenshotBtn').count(), 0, 'capture is not mixed with shortcuts');
+    assert.equal(await namedGuest.evaluate(() => Boolean(document.querySelector('#reviewsScreenshotBtn').compareDocumentPosition(document.querySelector('#reviewsDownloadBtn')) & Node.DOCUMENT_POSITION_FOLLOWING)), true, 'capture sits before download');
+    await namedGuest.locator('#reviewsShortcutsBtn').click();
+    assert.equal(await namedGuest.locator('#reviewsShortcutsMenu').isVisible(), true);
+    if (process.env.REVIEWS_SHORTCUTS_SCREENSHOT) await namedGuest.screenshot({ path: process.env.REVIEWS_SHORTCUTS_SCREENSHOT, fullPage: true });
+    assert.match(await namedGuest.locator('#reviewsShortcutsMenu').textContent(), /Ajustar imagen.*Pantalla completa.*Ocultar controles/s);
+    await namedGuest.keyboard.press('Escape');
+    assert.equal(await namedGuest.locator('#reviewsShortcutsMenu').isVisible(), false);
+    await mockTabCapture(namedGuest);
+    const captureDownload = namedGuest.waitForEvent('download');
+    await namedGuest.locator('#reviewsScreenshotBtn').click();
+    assert.match((await captureDownload).suggestedFilename(), /foto-captura\.png$/);
+    assert.equal(await namedGuest.evaluate(() => window.captureRequests), 1, 'cross-origin media uses authorized tab capture');
+    assert.match(await namedGuest.locator('#reviewsCommentContext').textContent(), /Captura PNG descargada/);
     assert.equal(await namedGuest.locator('#authGate').isVisible(), false, 'viewing requires no sign-in');
     assert.equal(await namedGuest.locator('#reviewsGuestName').isVisible(), true);
     assert.equal(await namedGuest.locator('#reviewsGuestGoogle').isVisible(), true);
@@ -126,6 +161,10 @@ const fakeFirebaseAuth = `
     if (process.env.REVIEW_CLIENT_SCREENSHOT) await namedGuest.screenshot({ path: process.env.REVIEW_CLIENT_SCREENSHOT, fullPage: true });
     await namedGuest.setViewportSize({ width: 390, height: 844 });
     assert.equal(await namedGuest.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'the shared review fits a phone');
+    await namedGuest.locator('#reviewsShortcutsBtn').click();
+    const shortcutsBox = await namedGuest.locator('#reviewsShortcutsMenu').boundingBox();
+    assert.ok(shortcutsBox.x >= 0 && shortcutsBox.x + shortcutsBox.width <= 391, 'the shortcut list fits a phone');
+    await namedGuest.locator('#reviewsShortcutsBtn').click();
     assert.equal(await namedGuest.locator('#reviewsGuestGoogle').isVisible(), true);
     await namedGuest.setViewportSize({ width: 1280, height: 720 });
     await namedGuest.locator('#reviewsGuestName').fill('Roberto');
@@ -158,10 +197,33 @@ const fakeFirebaseAuth = `
       }] };
       localStorage.setItem('test-cloud-published', JSON.stringify([...shares, second]));
     });
+    const videoFixture = await page.evaluate(async () => {
+      if (!window.MediaRecorder || !MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) return null;
+      const source = document.createElement('canvas'); source.width = 320; source.height = 180;
+      const graphics = source.getContext('2d'); graphics.fillStyle = '#547d8e'; graphics.fillRect(0, 0, 320, 180);
+      const stream = source.captureStream(10);
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' });
+      const chunks = []; recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+      const done = new Promise(resolve => { recorder.onstop = resolve; });
+      let frame = 0;
+      const animation = setInterval(() => { graphics.fillStyle = frame++ % 2 ? '#547d8e' : '#647d8e'; graphics.fillRect(0, 0, 320, 180); }, 50);
+      recorder.start(); await new Promise(resolve => setTimeout(resolve, 600)); clearInterval(animation); recorder.stop(); await done;
+      stream.getTracks().forEach(track => track.stop());
+      const file = new File(chunks, 'revision.webm', { type: 'video/webm' });
+      return new Promise(resolve => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.readAsDataURL(file); });
+    });
+    assert.ok(videoFixture, 'the browser can generate a test video');
+    await context.route('**/revision.webm?*', route => fulfillVideo(route, videoFixture));
     const videoGuest = await context.newPage(); videoGuest.on('pageerror', error => errors.push(error.message));
     await videoGuest.goto(`${reviewsUrl}#share=${'B'.repeat(43)}&file=client-video`);
     await videoGuest.locator('#reviewsDownloadBtn').waitFor({ state: 'visible' });
+    await videoGuest.waitForFunction(() => document.querySelector('#reviewsVideo').videoWidth > 0);
     assert.equal(await videoGuest.locator('#reviewsMediaTitle').textContent(), 'revision.webm', 'the file in the shared link opens instead of the first file');
+    await mockTabCapture(videoGuest);
+    const frameDownload = videoGuest.waitForEvent('download');
+    await videoGuest.locator('#reviewsScreenshotBtn').click();
+    assert.match((await frameDownload).suggestedFilename(), /revision-fotograma-\d+\.png$/);
+    assert.equal(await videoGuest.evaluate(() => window.captureRequests), 1, 'Dropbox video frames use the tab capture fallback');
     assert.equal(await videoGuest.locator('#authGate').isVisible(), false);
     assert.equal(await videoGuest.locator('#reviewsRemoveMedia').isVisible(), false);
     await videoGuest.evaluate(() => { HTMLAnchorElement.prototype.click = function () { window.clientDownload = this.href; }; });
