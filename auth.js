@@ -5,13 +5,21 @@ const profileModal = document.querySelector('#profileModal');
 const profileAvatar = document.querySelector('#profileAvatar');
 const profileName = document.querySelector('#profileName');
 const profileEmail = document.querySelector('#profileEmail');
-const profileRole = document.querySelector('#profileRole');
+const profileVistoRole = document.querySelector('#profileVistoRole');
+const profileMiraRole = document.querySelector('#profileMiraRole');
 const profileModules = document.querySelector('#profileModules');
 const authGate = document.querySelector('#authGate');
 const authGateButton = document.querySelector('#authGateButton');
 const authGateTitle = document.querySelector('#authGateTitle');
 const authGateCopy = document.querySelector('#authGateCopy');
 const authGateStatus = document.querySelector('#authGateStatus');
+let homeAppHandler = null;
+for (const [id, app] of [['homeCompiLink', 'compi'], ['homePdrLink', 'pdr']]) {
+  document.getElementById(id)?.addEventListener('click', () => {
+    if (homeAppHandler) homeAppHandler(app);
+    else showAuthMessage('Preparando el acceso. Volvé a tocar la aplicación en un momento.');
+  });
+}
 
 // Firebase config is intentionally injected separately so the public app can be
 // connected to the correct Firebase project without putting project-specific
@@ -21,10 +29,11 @@ const publicReview = new URLSearchParams(location.hash.slice(1)).has('share') ||
 const reviewsEntry = document.documentElement.dataset.studioApp === 'reviews';
 const homeEntry = document.documentElement.dataset.studioApp === 'home';
 
-function updateHomeModules(permissions = {}) {
+function updateHomeModules(permissions = null) {
+  const visitor = permissions === null;
   for (const [id, statusId, enabled, url] of [
-    ['homeStoryboardsLink', 'homeStoryboardsStatus', permissions.storyboards === true || permissions.storyboardsView === true, '?app=storyboards'],
-    ['homeReviewsLink', 'homeReviewsStatus', permissions.reviewsView === true || permissions.reviewsClient === true, '?app=reviews'],
+    ['homeStoryboardsLink', 'homeStoryboardsStatus', visitor || permissions.storyboards === true || permissions.storyboardsView === true, '?app=storyboards'],
+    ['homeReviewsLink', 'homeReviewsStatus', visitor || permissions.reviewsView === true || permissions.reviewsClient === true, '?app=reviews'],
   ]) {
     const link = document.getElementById(id);
     if (!link) continue;
@@ -32,8 +41,10 @@ function updateHomeModules(permissions = {}) {
     else link.removeAttribute('href');
     link.classList.toggle('is-unavailable', !enabled);
     link.setAttribute('aria-disabled', String(!enabled));
-    document.getElementById(statusId).textContent = enabled ? 'Entrar a la herramienta →' : 'Sin acceso asignado';
+    document.getElementById(statusId).textContent = visitor ? 'Iniciá sesión para entrar →' : enabled ? 'Entrar a la herramienta →' : 'Sin acceso asignado';
   }
+  const compiStatus = document.getElementById('homeCompiStatus');
+  if (compiStatus) compiStatus.textContent = visitor ? 'Iniciá sesión para descargar ↓' : window.STUDIO_SIGNED_IN ? 'Descargar para Windows ↓' : 'Acceso pendiente';
 }
 
 function setAuthGate(locked, title = '', copy = '', status = '') {
@@ -45,6 +56,7 @@ function setAuthGate(locked, title = '', copy = '', status = '') {
 }
 
 function setAuthPending() {
+  if (homeEntry) return;
   document.body.classList.add('auth-locked');
   if (authGate) authGate.hidden = true;
 }
@@ -52,7 +64,14 @@ function setAuthPending() {
 function showAuthMessage(message) {
   if (authGateStatus) authGateStatus.textContent = message;
   if (typeof window.showToast === 'function') window.showToast(message);
-  else accountButton?.setAttribute('title', message);
+  else {
+    const toast = document.querySelector('#toast');
+    if (toast) {
+      toast.textContent = message;
+      toast.classList.add('is-visible');
+      setTimeout(() => toast.classList.remove('is-visible'), 3500);
+    } else accountButton?.setAttribute('title', message);
+  }
 }
 
 function closeProfile() {
@@ -72,10 +91,9 @@ function updateProfile(user, access = null, pending = false) {
   const name = user.displayName || user.email || 'Cuenta';
   if (profileName) profileName.textContent = name;
   if (profileEmail) profileEmail.textContent = user.email || '';
-  if (profileRole) {
-    const roleNames = { client: 'Cliente', viewer: 'Lectura', collaborator: 'Colaborador/a', manager: 'Ejecutiva / Gerencia', custom: 'Equipo autorizado' };
-    profileRole.textContent = pending ? 'Pendiente de autorización' : access?.role === 'admin' ? 'Administrador' : access?.permissions?.storyboards ? 'Visto · acceso completo' : access?.permissions?.storyboardsView ? 'Visto · solo lectura' : roleNames[access?.roles?.reviews] || 'Equipo autorizado';
-  }
+  const permissions = access?.permissions || {};
+  if (profileVistoRole) profileVistoRole.textContent = pending ? 'Pendiente' : permissions.storyboards ? 'Acceso completo' : permissions.storyboardsView ? 'Solo lectura' : 'Sin acceso';
+  if (profileMiraRole) profileMiraRole.textContent = pending ? 'Pendiente' : permissions.reviewsClient ? 'Cliente' : permissions.reviewsView && permissions.reviewsCreate && permissions.reviewsEdit && permissions.reviewsShare ? 'Acceso completo' : permissions.reviewsView && permissions.reviewsEdit ? 'Edición' : permissions.reviewsView ? 'Solo lectura' : 'Sin acceso';
   if (profileAvatar) {
     profileAvatar.textContent = user.photoURL ? '' : name.trim().charAt(0).toUpperCase() || 'G';
     profileAvatar.style.backgroundImage = user.photoURL ? `url("${user.photoURL.replaceAll('"', '')}")` : '';
@@ -114,7 +132,7 @@ function renderSignedOut() {
   accountButton?.setAttribute('aria-label', 'Iniciar sesión con Google');
   accountButton?.setAttribute('aria-expanded', 'false');
   accountButton?.classList.remove('is-authenticated');
-  setAuthGate(!publicReview, 'Iniciá sesión para entrar.', 'Tu espacio de preproducción está protegido. Continuá con tu cuenta de Google para ver tus proyectos.');
+  setAuthGate(!publicReview && !homeEntry, 'Iniciá sesión para entrar.', 'Continuá con tu cuenta de Google para usar esta herramienta.');
   window.dispatchEvent(new Event('studio-auth-change'));
 }
 
@@ -155,26 +173,27 @@ function renderSignedIn(user, access) {
 
 function renderNoAccess(user) {
   closeProfile();
-  updateHomeModules();
   window.STUDIO_SIGNED_IN = false;
   window.STUDIO_ROLE = null;
   window.STUDIO_PERMISSIONS = {};
   window.STUDIO_REVIEW_TOKENS = [];
   window.STUDIO_USER = user;
+  updateHomeModules({});
   authGateButton.textContent = 'Cerrar sesión';
   accountAvatar.textContent = (user.displayName || user.email || 'G').charAt(0).toUpperCase();
   accountLabel.textContent = user.email || 'Cuenta sin acceso';
   accountButton?.setAttribute('aria-label', `Ver perfil de ${user.displayName || user.email || 'la cuenta'}`);
   accountButton?.setAttribute('aria-controls', 'profileModal');
   updateProfile(user, null, true);
-  setAuthGate(!publicReview, 'Tu cuenta está pendiente.', 'El administrador de GB Studio debe habilitar tu cuenta y elegir qué secciones podés usar.');
+  setAuthGate(!publicReview && !homeEntry, 'Tu cuenta está pendiente.', 'El administrador de GB Studio debe habilitar tu cuenta y elegir qué secciones podés usar.');
   window.dispatchEvent(new Event('studio-auth-change'));
 }
 
 if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.projectId) {
   renderSignedOut();
-  setAuthGate(true, 'No se pudo conectar el acceso.', 'La configuración de Firebase no está disponible en esta versión publicada.', 'Revisá la conexión del proyecto e intentá nuevamente.');
+  if (!homeEntry) setAuthGate(true, 'No se pudo conectar el acceso.', 'La configuración de Firebase no está disponible en esta versión publicada.', 'Revisá la conexión del proyecto e intentá nuevamente.');
   const missingConfigMessage = () => showAuthMessage('No se pudo cargar la configuración de Firebase. Recargá la página e intentá nuevamente.');
+  homeAppHandler = missingConfigMessage;
   accountButton?.addEventListener('click', missingConfigMessage);
   authGateButton?.addEventListener('click', missingConfigMessage);
 } else {
@@ -207,12 +226,12 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
         if (auth.currentUser?.uid !== user.uid) return;
         console.error('Could not verify studio access', error);
         renderNoAccess(user);
-        if (!publicReview) setAuthGate(true, 'No se pudo verificar el acceso.', 'Revisá la conexión con Firebase e intentá nuevamente.');
+        if (!publicReview && !homeEntry) setAuthGate(true, 'No se pudo verificar el acceso.', 'Revisá la conexión con Firebase e intentá nuevamente.');
       });
     });
     const signIn = async () => {
       try {
-        await signInWithPopup(auth, provider);
+        return (await signInWithPopup(auth, provider)).user;
       } catch (error) {
         console.error('Google sign-in failed', error);
         const code = error?.code || '';
@@ -220,7 +239,30 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
         else if (code.includes('unauthorized-domain')) showAuthMessage('Agregá gb-films.github.io en Firebase → Authentication → Authorized domains.');
         else if (code.includes('popup-blocked')) showAuthMessage('El navegador bloqueó la ventana de Google. Permití ventanas emergentes para este sitio.');
         else showAuthMessage('No se pudo iniciar sesión con Google. Revisá la configuración de Firebase.');
+        return null;
       }
+    };
+    const authorizedHomeUser = async () => {
+      const user = auth.currentUser && !auth.currentUser.isAnonymous ? auth.currentUser : await signIn();
+      if (!user) return false;
+      try {
+        if (await cloud.staffRole(user)) return true;
+        showAuthMessage('Tu cuenta está pendiente de autorización para usar las aplicaciones.');
+      } catch (error) {
+        console.error('Could not verify application access', error);
+        showAuthMessage('No se pudo verificar tu acceso. Intentá de nuevo.');
+      }
+      return false;
+    };
+    homeAppHandler = async appName => {
+      if (!await authorizedHomeUser()) return;
+      if (appName === 'pdr') { showAuthMessage('PDR todavía está en proceso.'); return; }
+      const link = document.createElement('a');
+      link.href = 'downloads/Compi.zip';
+      link.download = 'Compi.zip';
+      document.body.append(link);
+      link.click();
+      link.remove();
     };
     accountButton?.addEventListener('click', async () => {
       if (auth.currentUser && !auth.currentUser.isAnonymous) openProfile();
@@ -241,8 +283,9 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
   } catch (error) {
     console.error('Firebase auth could not be initialized', error);
     renderSignedOut();
-    setAuthGate(true, 'No se pudo cargar el acceso.', 'Firebase no respondió correctamente. Recargá la página e intentá nuevamente.', 'Si el problema continúa, revisá la configuración del proveedor Google.');
+    if (!homeEntry) setAuthGate(true, 'No se pudo cargar el acceso.', 'Firebase no respondió correctamente. Recargá la página e intentá nuevamente.', 'Si el problema continúa, revisá la configuración del proveedor Google.');
     const initErrorMessage = () => showAuthMessage('No se pudo cargar el acceso con Google. Recargá la página e intentá nuevamente.');
+    homeAppHandler = initErrorMessage;
     accountButton?.addEventListener('click', initErrorMessage);
     authGateButton?.addEventListener('click', initErrorMessage);
   }
