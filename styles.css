@@ -507,6 +507,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline-color:#0
 .auth-gate[hidden] { display:none; }
 .dashboard-create-card[hidden],#dashboardEmptyCreateBtn[hidden] { display:none!important; }
 .auth-locked .app-shell { visibility:hidden; }
+html[data-studio-app="home"] body.auth-locked { background:#101010; }
+html[data-studio-app="reviews"] body.auth-locked { background:#ececec; }
 .auth-gate-card { width:min(440px,100%); padding:42px; border:1px solid #3a3a3a; color:#fff; background:#111; box-shadow:14px 14px 0 rgba(255,255,255,.08); }
 .auth-gate-mark { display:grid; place-items:center; width:48px; height:48px; margin-bottom:28px; border:1px solid #fff; color:#fff; font:600 14px 'DM Mono',monospace; letter-spacing:-1px; }
 .auth-gate-card .eyebrow { color:#aaa; }

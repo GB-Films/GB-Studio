@@ -44,6 +44,11 @@ function setAuthGate(locked, title = '', copy = '', status = '') {
   if (authGateStatus) authGateStatus.textContent = status;
 }
 
+function setAuthPending() {
+  document.body.classList.add('auth-locked');
+  if (authGate) authGate.hidden = true;
+}
+
 function showAuthMessage(message) {
   if (authGateStatus) authGateStatus.textContent = message;
   if (typeof window.showToast === 'function') window.showToast(message);
@@ -190,7 +195,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
       const google = user.emailVerified && user.providerData.some(item => item.providerId === 'google.com');
       if (!google) { renderNoAccess(user); return; }
       if (user.email?.toLowerCase() === 'info@granbertafilms.com') { renderSignedIn(user, { role: 'admin', permissions: { ...cloud.ALL_PERMISSIONS } }); return; }
-      if (!publicReview) setAuthGate(true, 'Verificando acceso…', 'Estamos comprobando si tu cuenta está autorizada para entrar al estudio.');
+      if (!publicReview) setAuthPending();
       if (!publicReview) cloud.registerAccessRequest(user).catch(error => {
         console.error('Could not register access request', error);
         if (auth.currentUser?.uid === user.uid && !window.STUDIO_SIGNED_IN) showAuthMessage('No se pudo registrar tu solicitud. Pedile al administrador que agregue tu correo manualmente.');
