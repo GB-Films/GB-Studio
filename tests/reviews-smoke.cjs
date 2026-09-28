@@ -29,7 +29,7 @@ const server = http.createServer((request, response) => {
     page.on('pageerror', error => errors.push(error.message));
     await page.route('https://www.gstatic.com/firebasejs/**', route => route.abort());
     const url = `http://127.0.0.1:${server.address().port}`;
-    const unlock = async () => { await page.waitForTimeout(300); await page.evaluate(() => { document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true; }); };
+    const unlock = async () => { await page.waitForTimeout(300); await page.evaluate(() => { document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true; window.STUDIO_PERMISSIONS = { storyboards: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true }; window.dispatchEvent(new Event('studio-auth-change')); }); };
     const enterReview = async () => { await page.locator('#reviewsNav').click(); await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Campaña test' }).click(); await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Montaje · V1' }).click(); await page.locator('#reviewsView').waitFor({ state: 'visible' }); };
     await page.goto(url);
     await unlock();
@@ -397,7 +397,7 @@ const server = http.createServer((request, response) => {
       await migration.unroute('**/reviews.js*');
       await migration.reload();
       await migration.waitForTimeout(300);
-      await migration.evaluate(() => { document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true; });
+      await migration.evaluate(() => { document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true; window.STUDIO_PERMISSIONS = { storyboards: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true }; window.dispatchEvent(new Event('studio-auth-change')); });
       await migration.locator('#reviewsNav').click();
       await migration.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Reviews anteriores' }).click();
       assert.equal(await migration.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Review original' }).count(), 1, 'old records are grouped in a legacy review');

@@ -476,6 +476,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline-color:#0
 /* Authentication is required before any project data or workspace is visible. */
 .auth-gate { position:fixed; z-index:100; inset:0; display:grid; place-items:center; padding:24px; background:#080808; background-image:linear-gradient(135deg,rgba(255,255,255,.06) 0 25%,transparent 25% 75%,rgba(255,255,255,.06) 75%),linear-gradient(45deg,transparent 0 25%,rgba(255,255,255,.035) 25% 75%,transparent 75%); background-size:420px 420px; }
 .auth-gate[hidden] { display:none; }
+.dashboard-create-card[hidden],#dashboardEmptyCreateBtn[hidden] { display:none!important; }
 .auth-locked .app-shell { visibility:hidden; }
 .auth-gate-card { width:min(440px,100%); padding:42px; border:1px solid #3a3a3a; color:#fff; background:#111; box-shadow:14px 14px 0 rgba(255,255,255,.08); }
 .auth-gate-mark { display:grid; place-items:center; width:48px; height:48px; margin-bottom:28px; border:1px solid #fff; color:#fff; font:600 14px 'DM Mono',monospace; letter-spacing:-1px; }

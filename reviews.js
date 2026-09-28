@@ -38,14 +38,17 @@
       transaction.onabort = () => reject(transaction.error || new Error('No se pudo guardar el archivo'));
     });
   }
-  const cloud = () => import('./reviews-cloud.js?v=2');
+  const cloud = () => import('./reviews-cloud.js?v=3');
+  const canReview = key => window.STUDIO_ROLE === 'admin' || window.STUDIO_PERMISSIONS?.[key] === true;
   async function saveRecord(record) {
+    if (!canReview('reviewsEdit')) throw new Error('No tenés permiso para editar Reviews.');
     const token = state.projects.find(project => project.id === record.projectId)?.versions.find(version => version.id === record.versionId)?.shareToken;
     if (token && record.source === 'dropbox') await (await cloud()).upsertSharedFile(token, record);
     if (window.STUDIO_SIGNED_IN && !isGuestReview()) await (await cloud()).saveStaffFile(record);
     await databaseRequest('items', 'readwrite', store => store.put(record));
   }
   async function saveProject(project) {
+    if (!canReview(state.projects.some(entry => entry.id === project.id) ? 'reviewsEdit' : 'reviewsCreate')) throw new Error('No tenés permiso para guardar este proyecto.');
     const shared = project.versions.filter(version => version.shareToken);
     if (shared.length) { const api = await cloud(); for (const version of shared) await api.updateShareMetadata(project, version); }
     if (window.STUDIO_SIGNED_IN && !isGuestReview()) await (await cloud()).saveStaffProject(project);
@@ -105,6 +108,7 @@
   }
   function closeConfirmation(accepted) { $('#reviewsConfirmModal').hidden = true; confirmResolve?.(accepted); confirmResolve = null; }
   function openForm(type, entity = null) {
+    if (!canReview(entity ? 'reviewsEdit' : 'reviewsCreate')) return;
     formMode = { type, id: entity?.id || null };
     const project = type === 'project';
     $('#reviewsProjectFields').hidden = !project;
@@ -127,7 +131,8 @@
     const grid = $('#reviewsHomeGrid'); grid.replaceChildren();
     $('#reviewsHomeTitle').textContent = project ? project.title : 'Proyectos de review';
     $('#reviewsHomeCopy').textContent = project ? 'Elegí una review o creá otra para una etapa distinta. Cada review tiene sus archivos y comentarios.' : 'Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.';
-    $('#reviewsCreateProject').hidden = Boolean(project);
+    $('#reviewsCreateProject').hidden = Boolean(project) || !canReview('reviewsCreate');
+    $('#reviewsCreateVersion').hidden = !canReview('reviewsCreate');
     $('#reviewsProjectContext').hidden = !project;
     $('#reviewsHomeSectionLabel').textContent = project ? 'REVIEWS DE ESTE PROYECTO' : 'PROYECTOS';
     const entries = project ? [...project.versions] : [...state.projects];
@@ -136,6 +141,7 @@
     $('#reviewsEmptyCreate').textContent = project ? '＋ Crear review' : '＋ Crear proyecto';
     $('#reviewsHomeEmpty h2').textContent = project ? 'Todavía no hay reviews.' : 'Un lugar para cada devolución.';
     $('#reviewsHomeEmpty p').textContent = project ? 'Creá una review de montaje, VFX o cliente para empezar a cargar material.' : 'Creá un proyecto y después abrí reviews distintas para montaje, VFX o cliente.';
+    $('#reviewsEmptyCreate').hidden = !canReview('reviewsCreate');
     if (project) $('#reviewsProjectMeta').textContent = [project.client && `CLIENTE · ${project.client}`, project.agency && `AGENCIA · ${project.agency}`, project.director && `DIRECTOR · ${project.director}`, 'GRAN BERTA FILMS'].filter(Boolean).join('  /  ');
     for (const entry of entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
       const card = document.createElement('article'); card.className = 'reviews-home-card';
@@ -149,14 +155,19 @@
       open.append(mark, tag, title, count, arrow);
       open.addEventListener('click', () => project ? openVersion(entry.id) : showReviewsHome(entry.id));
       const actions = document.createElement('div'); actions.className = 'reviews-home-card-actions';
-      if (project) actions.append(cardAction('↗ Compartir', `Compartir ${entry.title}`, () => shareVersion(entry.id)));
-      actions.append(cardAction('✎ Editar', `Editar ${entry.title}`, () => openForm(project ? 'version' : 'project', entry)), cardAction('⌫ Eliminar', `Eliminar ${entry.title}`, () => project ? deleteVersion(entry.id) : deleteProject(entry.id)));
-      card.append(open, actions); grid.append(card);
+      if (project && canReview('reviewsShare')) actions.append(cardAction('↗ Compartir', `Compartir ${entry.title}`, () => shareVersion(entry.id)));
+      if (canReview('reviewsEdit')) {
+        actions.append(cardAction('✎ Editar', `Editar ${entry.title}`, () => openForm(project ? 'version' : 'project', entry)));
+        const shared = project ? Boolean(entry.shareToken) : entry.versions.some(version => version.shareToken);
+        if (!shared || canReview('reviewsShare')) actions.append(cardAction('⌫ Eliminar', `Eliminar ${entry.title}`, () => project ? deleteVersion(entry.id) : deleteProject(entry.id)));
+      }
+      card.append(open); if (actions.childElementCount) card.append(actions); grid.append(card);
     }
   }
   function showReviewsHome(projectId = null) {
     if (document.body.classList.contains('public-review')) return;
     if (document.body.classList.contains('auth-locked')) return;
+    if (!canReview('reviewsView')) return;
     showDashboard();
     stopMedia(); state.active = null; state.projectId = projectId; state.versionId = null;
     $('#dashboardView').hidden = true; $('#reviewsHome').hidden = false; $('#reviewsView').hidden = true;
@@ -164,6 +175,7 @@
     $('#breadcrumbTitle').textContent = currentProject()?.title || 'Reviews';
     renderHome();
   }
+  window.STUDIO_SHOW_REVIEWS = () => showReviewsHome();
   async function openVersion(versionId) {
     const project = currentProject(); const version = project?.versions.find(entry => entry.id === versionId);
     if (!version) return;
@@ -175,7 +187,7 @@
     else clearViewer();
   }
   async function shareVersion(versionId = state.versionId) {
-    if (!window.STUDIO_SIGNED_IN) return;
+    if (!canReview('reviewsShare')) return;
     const project = currentProject(), version = project?.versions.find(entry => entry.id === versionId);
     if (!version) return;
     const records = state.records.filter(record => record.versionId === versionId);
@@ -210,7 +222,9 @@
     }
   }
   async function deleteProject(id) {
+    if (!canReview('reviewsEdit')) return;
     const project = state.projects.find(entry => entry.id === id); if (!project) return;
+    if (project.versions.some(version => version.shareToken) && !canReview('reviewsShare')) return;
     if (!await askConfirmation('¿Eliminar este proyecto?', `Se van a quitar “${project.title}”, sus reviews y comentarios. Los enlaces compartidos dejarán de funcionar. Los originales de Dropbox no se borrarán.`)) return;
     try {
       if (project.versions.some(version => version.shareToken)) {
@@ -230,7 +244,9 @@
     } catch (error) { console.error(error); $('#reviewsHomeCopy').textContent = 'No se pudo eliminar este proyecto. Revisá el almacenamiento del navegador.'; }
   }
   async function deleteVersion(id) {
+    if (!canReview('reviewsEdit')) return;
     const project = currentProject(), version = project?.versions.find(entry => entry.id === id); if (!version) return;
+    if (version.shareToken && !canReview('reviewsShare')) return;
     if (!await askConfirmation('¿Eliminar esta review?', `Se van a quitar “${version.title}”, sus archivos y comentarios. Su enlace compartido dejará de funcionar. Las otras reviews se conservan.`)) return;
     const updated = { ...project, versions: project.versions.filter(entry => entry.id !== id), updatedAt: new Date().toISOString() };
     try {
@@ -246,13 +262,16 @@
     } catch (error) { console.error(error); $('#reviewsHomeCopy').textContent = 'No se pudo eliminar esta review. Revisá el almacenamiento del navegador.'; }
   }
   function isGuestReview() { return document.body.classList.contains('public-review'); }
-  function canComment() { return !isGuestReview() || Boolean(state.shareToken && (state.guestName || window.STUDIO_SIGNED_IN)); }
+  function canComment() { return isGuestReview() ? Boolean(state.shareToken && (state.guestName || window.STUDIO_SIGNED_IN)) : canReview('reviewsEdit'); }
   function applyReviewPermissions() {
     const guest = isGuestReview();
     $('#reviewsGuestPrompt').hidden = !guest || canComment() || !state.shareToken;
     $('#reviewsCommentForm').hidden = !canComment() || !state.active;
     $('#reviewsAnnotationBar').hidden = !canComment() || !state.active;
-    $('#reviewsRemoveMedia').hidden = guest || !state.active;
+    $('#reviewsRemoveMedia').hidden = guest || !state.active || !canReview('reviewsEdit');
+    $('#reviewsLinkBtn').hidden = guest || !canReview('reviewsEdit');
+    $('#reviewsAddSection').hidden = guest || !canReview('reviewsEdit');
+    $('#reviewsShareBtn').hidden = guest || !canReview('reviewsShare');
     $('#reviewsCommentStorageNote').textContent = state.shareToken || currentVersion()?.shareToken ? 'Los comentarios y dibujos de esta review se comparten con quienes tengan el enlace.' : 'Este comentario se guarda solo en este navegador hasta que compartas la review.';
     renderCommentList();
   }
@@ -376,7 +395,7 @@
     list.replaceChildren();
     const records = sharedReview ? state.active ? [state.active] : [] : versionRecords();
     $('#reviewsCount').textContent = records.length;
-    $('#reviewsAddSection').hidden = !currentVersion() || isGuestReview();
+    $('#reviewsAddSection').hidden = !currentVersion() || isGuestReview() || !canReview('reviewsEdit');
     if (!records.length && !currentVersion()) { const empty = document.createElement('p'); empty.className = 'reviews-list-empty'; empty.textContent = 'Todavía no hay archivos.'; list.append(empty); return; }
     const sections = currentVersion() ? sectionDefinitions() : [{ id: 'default', title: 'Archivos' }];
     for (const section of sections) {
@@ -431,7 +450,7 @@
       const text = document.createElement('span'); text.className = 'reviews-comment-text'; text.textContent = comment.text || 'Anotación visual';
       open.append(meta, text); open.addEventListener('click', () => selectComment(comment.id));
       card.append(open);
-      if (!state.shareToken && !currentVersion()?.shareToken || window.STUDIO_SIGNED_IN || comment.authorUid && comment.authorUid === state.guestUid) {
+      if (canReview('reviewsEdit') || (isGuestReview() && comment.authorUid && comment.authorUid === state.guestUid)) {
         const actions = document.createElement('div'); actions.className = 'reviews-comment-actions';
         const resolve = document.createElement('button'); resolve.type = 'button'; resolve.textContent = comment.resolved ? 'Reabrir' : 'Resolver'; resolve.addEventListener('click', () => updateComment(comment.id, entry => { entry.resolved = !entry.resolved; }));
         const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Eliminar'; remove.addEventListener('click', () => updateComment(comment.id, null));
@@ -481,7 +500,7 @@
     $('#reviewsMediaSurface').style.setProperty('--review-aspect', String(16 / 9));
     $('#reviewsMediaError').hidden = true;
     $('#reviewsOpenSource').hidden = record.source !== 'dropbox';
-    $('#reviewsShareBtn').hidden = record.source !== 'dropbox' || isGuestReview();
+    $('#reviewsShareBtn').hidden = record.source !== 'dropbox' || isGuestReview() || !canReview('reviewsShare');
     if (record.source === 'dropbox') { $('#reviewsOpenSource').href = record.sourceUrl; $('#reviewsErrorSource').href = record.sourceUrl; }
     $('#reviewsEmpty').hidden = true; $('#reviewsMediaSurface').hidden = false;
     $('#reviewsAnnotationBar').hidden = false; $('#reviewsCommentForm').hidden = false; $('#reviewsRemoveMedia').hidden = false;
@@ -542,7 +561,7 @@
     renderCommentList(); redraw(); updateClock();
   }
   async function updateComment(id, mutate) {
-    if (!state.active) return;
+    if (!state.active || !canComment()) return;
     const previous = structuredClone(state.active.comments);
     if (mutate) { const entry = state.active.comments.find(comment => comment.id === id); if (!entry) return; mutate(entry); }
     else state.active.comments = state.active.comments.filter(comment => comment.id !== id);
@@ -560,7 +579,7 @@
   }
   async function addDropboxLink(event) {
     event.preventDefault();
-    if (isGuestReview() || !currentVersion()) return;
+    if (isGuestReview() || !currentVersion() || !canReview('reviewsEdit')) return;
     const message = $('#reviewsLinkMessage'); message.classList.remove('is-error');
     let link;
     try { link = parseDropboxLink($('#reviewsLinkUrl').value); }
@@ -585,6 +604,7 @@
     showStatus('Elegí un archivo para ver sus comentarios.'); renderList(); renderCommentList();
   }
   async function removeActive() {
+    if (!canReview('reviewsEdit')) return;
     const record = state.active; if (!record || !await askConfirmation('¿Quitar este archivo?', `Se van a quitar “${record.name}” y sus comentarios de este navegador.${record.source === 'dropbox' ? ' El archivo original de Dropbox se conserva.' : ''}`, 'Quitar archivo')) return;
     try {
       const token = currentVersion()?.shareToken;
@@ -603,6 +623,7 @@
   function showReviews() {
     const publicView = document.body.classList.contains('public-review');
     if (document.body.classList.contains('auth-locked') && !publicView) return;
+    if (!publicView && !canReview('reviewsView')) return;
     showDashboard();
     if (publicView) document.body.classList.add('public-review');
     $('#dashboardView').hidden = true; $('#reviewsHome').hidden = true; $('#reviewsView').hidden = false; document.body.classList.add('reviews-open');
@@ -711,22 +732,80 @@
   function toggleHud() { const hidden = document.body.classList.toggle('reviews-hud-hidden'); $('#reviewsHudRestore').hidden = !hidden; requestAnimationFrame(fitSurface); }
   function isEditingText(target) { return target?.closest?.('input,textarea,select,[contenteditable="true"]'); }
 
-  async function refreshStaffList() {
-    const list = $('#reviewsStaffList'); list.replaceChildren();
-    const people = await (await cloud()).staffList();
-    if (!people.length) { const empty = document.createElement('p'); empty.textContent = 'Todavía no hay otras cuentas autorizadas.'; list.append(empty); }
-    for (const person of people) {
-      const row = document.createElement('div'); row.className = 'reviews-staff-row';
-      const email = document.createElement('span'); email.textContent = person.email;
-      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Quitar acceso';
-      remove.addEventListener('click', async () => {
-        if (!await askConfirmation('¿Quitar el acceso?', `${person.email} dejará de poder entrar a GB Studio con Google.`)) return;
-        try { await (await cloud()).removeStaff(person.email); await refreshStaffList(); }
-        catch (error) { console.error(error); $('#reviewsStaffStatus').textContent = 'No se pudo quitar el acceso.'; }
+  const permissionLabels = [
+    ['storyboards', 'Storyboards · usar y crear'],
+    ['reviewsView', 'Reviews · ver proyectos'],
+    ['reviewsCreate', 'Reviews · crear proyectos y reviews'],
+    ['reviewsEdit', 'Reviews · editar y comentar'],
+    ['reviewsShare', 'Reviews · compartir enlaces'],
+  ];
+  function permissionControls(container, values = {}) {
+    for (const [key, label] of permissionLabels) {
+      const wrapper = document.createElement('label'); wrapper.className = 'reviews-staff-permission';
+      const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.dataset.permission = key; checkbox.checked = values[key] === true;
+      const caption = document.createElement('span'); caption.textContent = label;
+      wrapper.append(checkbox, caption); container.append(wrapper);
+      checkbox.addEventListener('change', () => {
+        if (key.startsWith('reviews') && key !== 'reviewsView' && checkbox.checked) container.querySelector('[data-permission="reviewsView"]').checked = true;
+        if ((key === 'reviewsCreate' || key === 'reviewsShare') && checkbox.checked) container.querySelector('[data-permission="reviewsEdit"]').checked = true;
+        if (key === 'reviewsEdit' && !checkbox.checked) for (const dependent of ['reviewsCreate', 'reviewsShare']) container.querySelector(`[data-permission="${dependent}"]`).checked = false;
+        if (key === 'reviewsView' && !checkbox.checked) container.querySelectorAll('[data-permission^="reviews"]:not([data-permission="reviewsView"])').forEach(input => { input.checked = false; });
       });
-      row.append(email, remove); list.append(row);
     }
   }
+  function selectedPermissions(container) {
+    return Object.fromEntries([...container.querySelectorAll('[data-permission]')].map(input => [input.dataset.permission, input.checked]));
+  }
+  async function refreshStaffList() {
+    const list = $('#reviewsStaffList'); list.replaceChildren();
+    const api = await cloud();
+    const [staff, requests] = await Promise.all([api.staffList(), api.accessRequests()]);
+    const staffByEmail = new Map(staff.map(person => [person.email, person]));
+    const people = [...staff, ...requests.filter(person => !staffByEmail.has(person.email))]
+      .map(person => ({ ...person, pending: !staffByEmail.has(person.email) }))
+      .sort((a, b) => Number(b.pending) - Number(a.pending) || (a.name || a.email).localeCompare(b.name || b.email));
+    const pendingCount = people.filter(person => person.pending).length;
+    $('#reviewsStaffCount').textContent = `${staff.length} activas · ${pendingCount} pendientes`;
+    if (!people.length) { const empty = document.createElement('p'); empty.textContent = 'Todavía no hay cuentas registradas.'; list.append(empty); }
+    for (const person of people) {
+      const row = document.createElement('div'); row.className = 'reviews-staff-row'; row.dataset.search = `${person.name || ''} ${person.email}`.toLowerCase();
+      const head = document.createElement('div'); head.className = 'reviews-staff-head';
+      const identity = document.createElement('div');
+      const name = document.createElement('strong'); name.textContent = person.name || person.email;
+      const email = document.createElement('small'); email.textContent = person.email;
+      identity.append(name, email);
+      const status = document.createElement('span'); status.className = `reviews-staff-state${person.pending ? ' is-pending' : ''}`; status.textContent = person.pending ? 'Pendiente' : 'Activo';
+      head.append(identity, status);
+      const options = document.createElement('div'); options.className = 'reviews-staff-permissions';
+      permissionControls(options, person.permissions || (person.pending ? {} : api.ALL_PERMISSIONS));
+      const actions = document.createElement('div'); actions.className = 'reviews-staff-actions';
+      const save = document.createElement('button'); save.type = 'button'; save.className = 'button button-primary'; save.textContent = person.pending ? 'Habilitar cuenta' : 'Guardar permisos';
+      save.addEventListener('click', async () => {
+        save.disabled = true;
+        try { await api.saveStaff(person.email, selectedPermissions(options), person.name || ''); $('#reviewsStaffStatus').textContent = `Permisos de ${person.email} guardados.`; await refreshStaffList(); }
+        catch (error) { $('#reviewsStaffStatus').textContent = error.message || 'No se pudieron guardar los permisos.'; console.error(error); }
+        finally { save.disabled = false; }
+      });
+      actions.append(save);
+      if (!person.pending) {
+        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'reviews-staff-remove'; remove.textContent = 'Quitar acceso';
+        remove.addEventListener('click', async () => {
+          if (!await askConfirmation('¿Quitar el acceso?', `${person.email} dejará de poder entrar a GB Studio con Google.`)) return;
+          try { await api.removeStaff(person.email); $('#reviewsStaffStatus').textContent = 'Acceso quitado.'; await refreshStaffList(); }
+          catch (error) { console.error(error); $('#reviewsStaffStatus').textContent = 'No se pudo quitar el acceso.'; }
+        });
+        actions.append(remove);
+      }
+      row.append(head, options, actions); list.append(row);
+    }
+    filterStaffList();
+  }
+  function filterStaffList() {
+    const term = $('#reviewsStaffSearch').value.trim().toLowerCase();
+    $('#reviewsStaffList').querySelectorAll('.reviews-staff-row').forEach(row => { row.hidden = Boolean(term && !row.dataset.search.includes(term)); });
+  }
+  permissionControls($('#reviewsStaffNewPermissions'));
+  $('#reviewsStaffSearch').addEventListener('input', filterStaffList);
   $('#reviewsAdminBtn').addEventListener('click', async () => {
     if (window.STUDIO_ROLE !== 'admin') return;
     $('#reviewsAdminModal').hidden = false; $('#reviewsStaffStatus').textContent = '';
@@ -737,7 +816,7 @@
   $('#reviewsStaffForm').addEventListener('submit', async event => {
     event.preventDefault(); if (window.STUDIO_ROLE !== 'admin') return;
     const input = $('#reviewsStaffEmail'), submit = $('#reviewsStaffForm button[type=submit]'); submit.disabled = true;
-    try { await (await cloud()).addStaff(input.value); input.value = ''; $('#reviewsStaffStatus').textContent = 'Cuenta autorizada. Ya puede iniciar sesión con Google.'; await refreshStaffList(); }
+    try { await (await cloud()).saveStaff(input.value, selectedPermissions($('#reviewsStaffNewPermissions'))); input.value = ''; $('#reviewsStaffNewPermissions').querySelectorAll('input').forEach(item => { item.checked = false; }); $('#reviewsStaffStatus').textContent = 'Cuenta autorizada. Ya puede iniciar sesión con Google.'; await refreshStaffList(); }
     catch (error) { console.error(error); $('#reviewsStaffStatus').textContent = error.message || 'No se pudo dar acceso.'; }
     finally { submit.disabled = false; }
   });
@@ -828,24 +907,38 @@
   });
   window.addEventListener('studio-auth-change', () => {
     $('#reviewsAdminBtn').hidden = window.STUDIO_ROLE !== 'admin';
+    $('#reviewsNav').hidden = !canReview('reviewsView');
+    $('#dashboardReviewsBtn').hidden = !canReview('reviewsView');
+    if (!window.STUDIO_SIGNED_IN) $('#reviewsAdminModal').hidden = true;
     if (sharedReview && window.STUDIO_SIGNED_IN) {
       const existing = state.records.find(record => !record.ephemeral && record.source === 'dropbox' && record.sourceUrl === sharedReview.sourceUrl);
       if (existing && state.active?.id !== existing.id) selectRecord(existing.id);
     }
+    if (window.STUDIO_SIGNED_IN && window.STUDIO_ROLE !== 'admin' && !isGuestReview() && window.STUDIO_USER?.uid !== hydratedUserUid) {
+      state.projects = []; state.records = []; state.projectId = null; state.versionId = null; state.active = null;
+    }
     applyReviewPermissions();
-    if (window.STUDIO_SIGNED_IN && !isGuestReview() && window.STUDIO_USER?.uid !== hydratedUserUid) {
+    if (!$('#reviewsHome').hidden && canReview('reviewsView')) renderHome();
+    if (window.STUDIO_SIGNED_IN && canReview('reviewsView') && !isGuestReview() && window.STUDIO_USER?.uid !== hydratedUserUid) {
       hydratedUserUid = window.STUDIO_USER.uid;
       Promise.resolve(initialized).then(async () => {
+        if (window.STUDIO_USER?.uid !== hydratedUserUid || !canReview('reviewsView')) return;
+        if (window.STUDIO_ROLE !== 'admin') { state.projects = []; state.records = []; state.projectId = null; state.versionId = null; state.active = null; }
         const api = await cloud();
         const [remoteProjects, remoteFiles] = await Promise.all([api.listStaffProjects(), api.listStaffFiles()]);
+        if (window.STUDIO_USER?.uid !== hydratedUserUid || !canReview('reviewsView')) return;
         const remoteProjectIds = new Set(remoteProjects.map(project => project.id));
         const remoteFileIds = new Set(remoteFiles.map(record => record.id));
-        // One-time migration of pre-cloud browser data. Existing cloud copies always win.
-        for (const project of state.projects) if (!remoteProjectIds.has(project.id)) await api.saveStaffProject(project);
-        for (const record of state.records) if (record.source === 'dropbox' && !remoteFileIds.has(record.id)) await api.saveStaffFile(record);
-        state.projects = [...state.projects.filter(project => !remoteProjectIds.has(project.id)), ...remoteProjects];
-        state.records = [...state.records.filter(record => !remoteFileIds.has(record.id)), ...remoteFiles];
+        // Only the administrator imports pre-cloud browser data; other accounts see the shared library.
+        const importedProjects = window.STUDIO_ROLE === 'admin' ? state.projects.filter(project => !remoteProjectIds.has(project.id)) : [];
+        for (const project of importedProjects) await api.saveStaffProject(project);
+        const knownProjects = new Set([...remoteProjects, ...importedProjects].map(project => project.id));
+        const importedFiles = window.STUDIO_ROLE === 'admin' ? state.records.filter(record => record.source === 'dropbox' && knownProjects.has(record.projectId) && !remoteFileIds.has(record.id)) : [];
+        for (const record of importedFiles) await api.saveStaffFile(record);
+        state.projects = [...remoteProjects, ...importedProjects];
+        state.records = [...remoteFiles, ...importedFiles];
         const shares = await api.listSharedReviews();
+        if (window.STUDIO_USER?.uid !== hydratedUserUid || !canReview('reviewsView')) return;
         for (const share of shares) {
           let project = state.projects.find(entry => entry.id === share.projectId);
           const version = { id: share.versionId, title: share.versionTitle, category: share.category,
@@ -865,7 +958,7 @@
         if (state.active) state.active = state.records.find(record => record.id === state.active.id) || state.active;
         if (!$('#reviewsHome').hidden) renderHome();
       }).catch(error => { hydratedUserUid = null; console.error('Could not load shared reviews', error); });
-    } else if (!window.STUDIO_SIGNED_IN) hydratedUserUid = null;
+    } else if (!window.STUDIO_SIGNED_IN || !canReview('reviewsView')) hydratedUserUid = null;
   });
   $('#reviewsShareBtn').textContent = 'Compartir review ↗';
   $('#reviewsShareBtn').addEventListener('click', () => shareVersion());

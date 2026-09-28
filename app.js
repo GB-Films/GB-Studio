@@ -393,6 +393,7 @@ function findAsset(id) { return project.assets.find(asset => asset.id === id); }
 function placedAssetIds() { return new Set(project.pages.flatMap(page => page.items.map(item => item.assetId))); }
 
 function saveProject() {
+  if (!window.STUDIO_PERMISSIONS?.storyboards) return;
   if (!project) return;
   const candidate = project;
   candidate.updatedAt = new Date().toISOString();
@@ -413,6 +414,7 @@ function saveProject() {
 }
 
 function persistProjects() {
+  if (!window.STUDIO_PERMISSIONS?.storyboards) return;
   try { localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects)); writeIndexedDbSnapshot(); } catch { writeIndexedDbSnapshot(); }
 }
 
@@ -754,6 +756,7 @@ function confirmDeleteProject() {
 }
 
 function openProject(id) {
+  if (!window.STUDIO_PERMISSIONS?.storyboards) return;
   const stored = projects.find(entry => entry.id === id);
   if (!stored) return;
   project = normalizeProject(stored);
@@ -2132,6 +2135,7 @@ function selectProjectFormat(format) {
   showToast(`Canvas ${labels[format] || ''} seleccionado`);
 }
 function createProjectDraft() {
+  if (!window.STUDIO_PERMISSIONS?.storyboards) return;
   pendingNewProject = true;
   project = null;
   lastUndoState = null;
@@ -2224,8 +2228,8 @@ $('#deletePhotoBtn').addEventListener('click', deleteSelected); $('#duplicatePho
 
 $('#dashboardCreateBtn').addEventListener('click', resetProject);
 $('#dashboardEmptyCreateBtn').addEventListener('click', resetProject);
-$('#storyboardsNav').addEventListener('click', showDashboard);
-document.querySelector('.brand').addEventListener('click', event => { event.preventDefault(); showDashboard(); });
+$('#storyboardsNav').addEventListener('click', () => { if (window.STUDIO_PERMISSIONS?.storyboards) showDashboard(); });
+document.querySelector('.brand').addEventListener('click', event => { event.preventDefault(); if (window.STUDIO_PERMISSIONS?.storyboards) showDashboard(); else window.STUDIO_SHOW_REVIEWS?.(); });
 $('#backToDashboardBtn').addEventListener('click', showDashboard);
 $('#manageVersionsBtn').addEventListener('click', openVersionsModal);
 $('#createVersionBtn').addEventListener('click', openVersionModal);
@@ -2274,6 +2278,13 @@ document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !editing) { event.preventDefault(); restoreLastUndo(); }
   if (event.key === 'Delete' && !editing) { if (selectedItems().length) deleteSelected(); else if (project && !$('#editorView').hidden) deleteCurrentPage(); }
   if (event.key === 'Escape') { closeExport(); closeVersionModal(); closeNewProjectConfirm(); closeDeletePageConfirm(); closeClearPageConfirm(); closeClearLibraryConfirm(); closeDeleteProjectModal(); closePageMenus(); }
+});
+
+window.addEventListener('studio-auth-change', () => {
+  const allowed = window.STUDIO_PERMISSIONS?.storyboards === true;
+  $('#storyboardsNav').hidden = !allowed;
+  $('#dashboardCreateBtn').hidden = !allowed;
+  $('#dashboardEmptyCreateBtn').hidden = !allowed;
 });
 
 showDashboard();

@@ -1,12 +1,19 @@
 // Shared Reviews data. Dropbox remains the only media host; Firestore stores links and feedback.
 import { getApps, getApp, initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
 
 const app = getApps().length ? getApp() : initializeApp(window.STORYBOARD_FIREBASE_CONFIG);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const ADMIN_EMAIL = 'info@granbertafilms.com';
+export const PERMISSION_KEYS = ['storyboards', 'reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'];
+export const ALL_PERMISSIONS = Object.fromEntries(PERMISSION_KEYS.map(key => [key, true]));
+function normalizedPermissions(data) {
+  if (!data || data.active === false) return null;
+  const permissions = data.permissions ? Object.fromEntries(PERMISSION_KEYS.map(key => [key, data.permissions[key] === true])) : { ...ALL_PERMISSIONS };
+  return Object.values(permissions).some(Boolean) ? permissions : null;
+}
 const shareRef = token => doc(db, 'reviewShares', token);
 const fileRef = (token, id) => doc(db, 'reviewShares', token, 'files', id);
 const commentRef = (token, fileId, id) => doc(db, 'reviewShares', token, 'files', fileId, 'comments', id);
@@ -20,24 +27,43 @@ function decodeComment(item) {
 
 export async function staffRole(user) {
   if (!user || user.isAnonymous || !user.emailVerified || !user.providerData.some(provider => provider.providerId === 'google.com')) return null;
-  if (user.email?.toLowerCase() === ADMIN_EMAIL) return 'admin';
+  if (user.email?.toLowerCase() === ADMIN_EMAIL) return { role: 'admin', permissions: { ...ALL_PERMISSIONS } };
   const member = await getDoc(doc(db, 'reviewStaff', user.email.toLowerCase()));
-  return member.exists() ? 'staff' : null;
+  const permissions = normalizedPermissions(member.exists() ? member.data() : null);
+  return permissions ? { role: 'staff', permissions } : null;
 }
 export function watchStaffRole(user, callback, onError) {
   return onSnapshot(doc(db, 'reviewStaff', user.email.toLowerCase()),
-    snapshot => callback(snapshot.exists() ? 'staff' : null), onError);
+    snapshot => {
+      const permissions = normalizedPermissions(snapshot.exists() ? snapshot.data() : null);
+      callback(permissions ? { role: 'staff', permissions } : null);
+    }, onError);
+}
+
+export async function registerAccessRequest(user) {
+  const ref = doc(db, 'accessRequests', user.uid);
+  if ((await getDoc(ref)).exists()) return;
+  await setDoc(ref, { uid: user.uid, email: user.email.toLowerCase(), name: (user.displayName || '').slice(0, 100), createdAt: serverTimestamp() });
+}
+export async function accessRequests() {
+  const snapshot = await getDocs(collection(db, 'accessRequests'));
+  return snapshot.docs.map(item => item.data()).sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
 }
 
 export async function staffList() {
   const snapshot = await getDocs(collection(db, 'reviewStaff'));
   return snapshot.docs.map(item => ({ email: item.id, ...item.data() })).sort((a, b) => a.email.localeCompare(b.email));
 }
-export async function addStaff(email) {
+export async function saveStaff(email, permissions, name = '') {
   const normalized = email.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error('Escribí un correo válido.');
   if (normalized === ADMIN_EMAIL) throw new Error('Esta cuenta ya es administradora.');
-  await setDoc(doc(db, 'reviewStaff', normalized), { addedAt: new Date().toISOString(), addedBy: auth.currentUser?.email || '' });
+  const safe = Object.fromEntries(PERMISSION_KEYS.map(key => [key, permissions?.[key] === true]));
+  if (!Object.values(safe).some(Boolean)) throw new Error('Seleccioná al menos un permiso.');
+  if ((safe.reviewsCreate || safe.reviewsEdit || safe.reviewsShare) && !safe.reviewsView) throw new Error('Para trabajar en Reviews, habilitá también Ver Reviews.');
+  if ((safe.reviewsCreate || safe.reviewsShare) && !safe.reviewsEdit) throw new Error('Para crear o compartir reviews, habilitá también Editar Reviews.');
+  await setDoc(doc(db, 'reviewStaff', normalized), { name: name.trim().slice(0, 100), active: true,
+    permissions: safe, updatedAt: new Date().toISOString(), updatedBy: auth.currentUser?.email || '' });
 }
 export async function removeStaff(email) { await deleteDoc(doc(db, 'reviewStaff', email)); }
 
