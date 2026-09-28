@@ -7,7 +7,7 @@ const app = getApps().length ? getApp() : initializeApp(window.STORYBOARD_FIREBA
 const db = getFirestore(app);
 const auth = getAuth(app);
 const ADMIN_EMAIL = 'info@granbertafilms.com';
-export const PERMISSION_KEYS = ['storyboards', 'reviewsClient', 'reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'];
+export const PERMISSION_KEYS = ['storyboards', 'storyboardsView', 'reviewsClient', 'reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'];
 export const ALL_PERMISSIONS = Object.fromEntries(PERMISSION_KEYS.map(key => [key, true]));
 function normalizedPermissions(data) {
   if (!data || data.active === false) return null;
@@ -65,7 +65,8 @@ export async function saveStaff(email, permissions, name = '', options = {}) {
   if ((safe.reviewsCreate || safe.reviewsEdit || safe.reviewsShare) && !safe.reviewsView) throw new Error('Para trabajar en Reviews, habilitá también Ver Reviews.');
   if ((safe.reviewsCreate || safe.reviewsShare) && !safe.reviewsEdit) throw new Error('Para crear o compartir reviews, habilitá también Editar Reviews.');
   const reviewTokens = [...new Set((Array.isArray(options.reviewTokens) ? options.reviewTokens : []).filter(value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value)))];
-  const roles = { storyboards: safe.storyboards ? 'editor' : 'none', reviews: safe.reviewsClient ? 'client' : options.roles?.reviews || 'custom' };
+  if (safe.storyboards) safe.storyboardsView = true;
+  const roles = { storyboards: safe.storyboards ? 'editor' : safe.storyboardsView ? 'viewer' : 'none', reviews: safe.reviewsClient ? 'client' : options.roles?.reviews || 'custom' };
   await setDoc(doc(db, 'reviewStaff', normalized), { name: name.trim().slice(0, 100), active, roles,
     permissions: safe, reviewTokens: safe.reviewsClient ? reviewTokens : [], updatedAt: new Date().toISOString(), updatedBy: auth.currentUser?.email || '' });
 }
@@ -74,6 +75,62 @@ export async function removeStaff(email) {
   await deleteDoc(doc(db, 'reviewStaff', normalized));
   const requests = await getDocs(collection(db, 'accessRequests'));
   for (const request of requests.docs) if (request.data().email === normalized) await deleteDoc(request.ref);
+}
+
+// Visto stores complete project snapshots in small Firestore documents. A revision
+// becomes visible only after all its chunks have been uploaded successfully.
+const storyboardRef = id => doc(db, 'storyboardProjects', id);
+const storyboardChunks = id => collection(db, 'storyboardProjects', id, 'chunks');
+const STORYBOARD_CHUNK_BYTES = 120000;
+function encodeStoryboard(project) {
+  const bytes = new TextEncoder().encode(JSON.stringify(project));
+  const chunks = [];
+  for (let start = 0; start < bytes.length; start += STORYBOARD_CHUNK_BYTES) {
+    const part = bytes.subarray(start, start + STORYBOARD_CHUNK_BYTES);
+    let binary = '';
+    for (let offset = 0; offset < part.length; offset += 16000) binary += String.fromCharCode(...part.subarray(offset, offset + 16000));
+    chunks.push(btoa(binary));
+  }
+  return chunks;
+}
+function decodeStoryboard(chunks) {
+  const parts = chunks.map(value => Uint8Array.from(atob(value), character => character.charCodeAt(0)));
+  const bytes = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+  let offset = 0;
+  for (const part of parts) { bytes.set(part, offset); offset += part.length; }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+export async function saveStoryboardProject(project) {
+  const chunks = encodeStoryboard(project);
+  const revision = crypto.randomUUID();
+  for (let index = 0; index < chunks.length; index++) {
+    await setDoc(doc(storyboardChunks(project.id), `${revision}-${index}`), { data: chunks[index] });
+  }
+  await setDoc(storyboardRef(project.id), {
+    title: project.title || '', client: project.client || '', versionGroupId: project.versionGroupId || project.id,
+    versionName: project.versionName || 'Base', updatedAt: project.updatedAt || new Date().toISOString(),
+    revision, chunkCount: chunks.length,
+  });
+  try {
+    const oldChunks = await getDocs(storyboardChunks(project.id));
+    for (const item of oldChunks.docs) if (!item.id.startsWith(`${revision}-`)) await deleteDoc(item.ref);
+  } catch (error) { console.warn('Could not remove an old Visto snapshot', error); }
+}
+export async function deleteStoryboardProject(id) {
+  await deleteDoc(storyboardRef(id));
+  const chunks = await getDocs(storyboardChunks(id));
+  for (const item of chunks.docs) await deleteDoc(item.ref);
+}
+export async function listStoryboardProjects() {
+  const projects = await getDocs(collection(db, 'storyboardProjects'));
+  return Promise.all(projects.docs.map(async item => {
+    const { revision, chunkCount } = item.data();
+    if (!revision || !Number.isInteger(chunkCount) || chunkCount < 1) return null;
+    const snapshots = await Promise.all(Array.from({ length: chunkCount }, (_, index) => getDoc(doc(storyboardChunks(item.id), `${revision}-${index}`))));
+    if (snapshots.some(snapshot => !snapshot.exists())) return null;
+    try { return decodeStoryboard(snapshots.map(snapshot => snapshot.data().data)); }
+    catch (error) { console.error('Could not open Visto project', item.id, error); return null; }
+  })).then(items => items.filter(Boolean));
 }
 
 export async function saveStaffProject(project) {

@@ -16,7 +16,8 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data.active == true)
         // Older team entries predate granular permissions and retain their access.
         && (!('permissions' in get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data)
-          || get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data.permissions[name] == true));
+          || (name in get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data.permissions
+            && get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data.permissions[name] == true)));
     }
     function activeShare(token) {
       return exists(/databases/$(database)/documents/reviewShares/$(token))
@@ -29,6 +30,16 @@ service cloud.firestore {
     match /reviewStaff/{email} {
       allow get: if admin() || (googleUser() && request.auth.token.email.lower() == email);
       allow list, create, update, delete: if admin();
+    }
+
+    // Both Visto roles can see the shared library; only full access can change it.
+    match /storyboardProjects/{projectId} {
+      allow read: if permission('storyboards') || permission('storyboardsView');
+      allow create, update, delete: if permission('storyboards');
+      match /chunks/{chunkId} {
+        allow read: if permission('storyboards') || permission('storyboardsView');
+        allow create, update, delete: if permission('storyboards');
+      }
     }
 
     match /accessRequests/{uid} {

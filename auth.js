@@ -23,7 +23,7 @@ const homeEntry = document.documentElement.dataset.studioApp === 'home';
 
 function updateHomeModules(permissions = {}) {
   for (const [id, statusId, enabled, url] of [
-    ['homeStoryboardsLink', 'homeStoryboardsStatus', permissions.storyboards === true, '?app=storyboards'],
+    ['homeStoryboardsLink', 'homeStoryboardsStatus', permissions.storyboards === true || permissions.storyboardsView === true, '?app=storyboards'],
     ['homeReviewsLink', 'homeReviewsStatus', permissions.reviewsView === true || permissions.reviewsClient === true, '?app=reviews'],
   ]) {
     const link = document.getElementById(id);
@@ -74,7 +74,7 @@ function updateProfile(user, access = null, pending = false) {
   if (profileEmail) profileEmail.textContent = user.email || '';
   if (profileRole) {
     const roleNames = { client: 'Cliente', viewer: 'Lectura', collaborator: 'Colaborador/a', manager: 'Ejecutiva / Gerencia', custom: 'Equipo autorizado' };
-    profileRole.textContent = pending ? 'Pendiente de autorización' : access?.role === 'admin' ? 'Administrador' : roleNames[access?.roles?.reviews] || (access?.permissions?.storyboards ? 'Editor/a' : 'Equipo autorizado');
+    profileRole.textContent = pending ? 'Pendiente de autorización' : access?.role === 'admin' ? 'Administrador' : access?.permissions?.storyboards ? 'Visto · acceso completo' : access?.permissions?.storyboardsView ? 'Visto · solo lectura' : roleNames[access?.roles?.reviews] || 'Equipo autorizado';
   }
   if (profileAvatar) {
     profileAvatar.textContent = user.photoURL ? '' : name.trim().charAt(0).toUpperCase() || 'G';
@@ -83,7 +83,7 @@ function updateProfile(user, access = null, pending = false) {
   if (profileModules) {
     profileModules.replaceChildren();
     const enabled = [];
-    if (access?.permissions?.storyboards) enabled.push('Visto');
+    if (access?.permissions?.storyboards || access?.permissions?.storyboardsView) enabled.push('Visto');
     if (access?.permissions?.reviewsView || access?.permissions?.reviewsClient) enabled.push('Mira');
     if (enabled.length) {
       const list = document.createElement('div'); list.className = 'profile-module-list';
@@ -143,7 +143,7 @@ function renderSignedIn(user, access) {
   if (!publicReview && reviewsEntry && !canEnterReviews) {
     authGateButton.textContent = 'Cerrar sesión';
     setAuthGate(true, 'No tenés acceso a Mira.', 'Pedile al administrador que habilite Mira para tu cuenta.');
-  } else if (!publicReview && !reviewsEntry && !homeEntry && !access.permissions.storyboards) {
+  } else if (!publicReview && !reviewsEntry && !homeEntry && !access.permissions.storyboards && !access.permissions.storyboardsView) {
     authGateButton.textContent = 'Cerrar sesión';
     setAuthGate(true, 'No tenés acceso a Visto.', 'Pedile al administrador que habilite Visto para tu cuenta.');
   } else {
@@ -182,7 +182,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
     const [{ initializeApp }, { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut }, cloud] = await Promise.all([
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js'),
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js'),
-      import('./reviews-cloud.js?v=4'),
+      import('./reviews-cloud.js?v=5'),
     ]);
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
