@@ -12,6 +12,7 @@ const authGateStatus = document.querySelector('#authGateStatus');
 // credentials in the source code by accident.
 const firebaseConfig = window.STORYBOARD_FIREBASE_CONFIG;
 const publicReview = new URLSearchParams(location.hash.slice(1)).has('share') || new URLSearchParams(location.hash.slice(1)).has('review');
+const reviewsEntry = document.documentElement.dataset.studioApp === 'reviews';
 
 function setAuthGate(locked, title = '', copy = '', status = '') {
   document.body.classList.toggle('auth-locked', locked);
@@ -58,10 +59,17 @@ function renderSignedIn(user, access) {
     accountAvatar.textContent = name.trim().charAt(0).toUpperCase() || 'G';
     accountAvatar.style.backgroundImage = '';
   }
-  setAuthGate(false);
+  if (!publicReview && reviewsEntry && !access.permissions.reviewsView) {
+    authGateButton.textContent = 'Cerrar sesión';
+    setAuthGate(true, 'No tenés acceso a Reviews.', 'Pedile al administrador que habilite Reviews para tu cuenta.');
+  } else if (!publicReview && !reviewsEntry && !access.permissions.storyboards) {
+    authGateButton.textContent = 'Cerrar sesión';
+    setAuthGate(true, 'No tenés acceso a Storyboards.', 'Pedile al administrador que habilite Storyboards para tu cuenta.');
+  } else {
+    setAuthGate(false);
+  }
   window.dispatchEvent(new Event('studio-auth-change'));
-  if (!publicReview && !access.permissions.storyboards) window.STUDIO_SHOW_REVIEWS?.();
-  else if (!publicReview && !access.permissions.reviewsView && (!document.querySelector('#reviewsHome')?.hidden || !document.querySelector('#reviewsView')?.hidden)) window.showDashboard?.();
+  if (!publicReview && reviewsEntry && access.permissions.reviewsView) window.STUDIO_SHOW_REVIEWS?.();
 }
 
 function renderNoAccess(user) {

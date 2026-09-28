@@ -48,6 +48,7 @@ const fakeCloud = `
     await context.route('**/reviews-cloud.js?v=3', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: fakeCloud }));
     await context.route('https://www.dropbox.com/scl/fi/**', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"></svg>' }));
     const url = `http://127.0.0.1:${server.address().port}`;
+    const reviewsUrl = `${url}/?app=reviews`;
     const authorize = async () => {
       await page.waitForTimeout(350);
       await page.evaluate(() => {
@@ -56,7 +57,9 @@ const fakeCloud = `
         window.dispatchEvent(new Event('studio-auth-change'));
       });
     };
-    await page.goto(url);
+    await page.goto(reviewsUrl);
+    assert.equal(await page.title(), 'GB Studio · Reviews');
+    assert.equal(await page.locator('#storyboardsNav').isVisible(), false, 'the Reviews entry does not show Storyboards navigation');
     assert.equal(await page.locator('#authGate').isVisible(), true, 'the studio starts behind the access gate');
     await authorize();
     await page.locator('#reviewsNav').click();
@@ -100,7 +103,7 @@ const fakeCloud = `
     page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
     await page.goto(`${url}/__blank`);
     await page.evaluate(async () => { await new Promise(resolve => { const request = indexedDB.deleteDatabase('gb-studio-reviews-v1'); request.onsuccess = resolve; request.onerror = resolve; }); });
-    await page.goto(url); await authorize();
+    await page.goto(reviewsUrl); await authorize();
     await page.locator('#reviewsNav').click();
     await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Proyecto sincronizado' }).waitFor();
     await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Proyecto sincronizado' }).click();

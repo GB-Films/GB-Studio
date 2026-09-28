@@ -29,9 +29,10 @@ const server = http.createServer((request, response) => {
     page.on('pageerror', error => errors.push(error.message));
     await page.route('https://www.gstatic.com/firebasejs/**', route => route.abort());
     const url = `http://127.0.0.1:${server.address().port}`;
+    const reviewsUrl = `${url}/?app=reviews`;
     const unlock = async () => { await page.waitForTimeout(300); await page.evaluate(() => { document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true; window.STUDIO_PERMISSIONS = { storyboards: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true }; window.dispatchEvent(new Event('studio-auth-change')); }); };
     const enterReview = async () => { await page.locator('#reviewsNav').click(); await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Campaña test' }).click(); await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Montaje · V1' }).click(); await page.locator('#reviewsView').waitFor({ state: 'visible' }); };
-    await page.goto(url);
+    await page.goto(reviewsUrl);
     await unlock();
     await page.locator('#reviewsNav').click();
     assert.equal(await page.locator('#reviewsHome').isVisible(), true, 'Reviews opens on its project dashboard');
@@ -111,8 +112,8 @@ const server = http.createServer((request, response) => {
     await page.locator('.reviews-comment-actions button').first().click();
     await page.locator('.reviews-comment.is-resolved').waitFor();
     assert.equal(await page.locator('.reviews-comment.is-resolved').count(), 1);
-    await page.locator('#storyboardsNav').click();
-    assert.equal(await page.locator('#dashboardView').isVisible(), true);
+    await page.locator('#reviewsBackVersions').click();
+    assert.equal(await page.locator('#reviewsHome').isVisible(), true);
     await enterReview();
     assert.equal(await page.locator('#reviewsCommentCount').textContent(), '1');
     await page.locator('#reviewsLinkBtn').click();
@@ -183,7 +184,7 @@ const server = http.createServer((request, response) => {
     assert.ok(await page.evaluate(() => document.querySelector('#reviewsVideo').duration) > .5, 'video fixture contains playable frames');
     await page.locator('#reviewsPlayBtn').click();
     await page.waitForFunction(() => document.querySelector('#reviewsVideo').currentTime > .05);
-    await page.locator('#storyboardsNav').click();
+    await page.locator('#reviewsBackVersions').click();
     assert.equal(await page.evaluate(() => document.querySelector('#reviewsVideo').paused), true, 'video pauses when leaving Reviews');
     await enterReview();
     await page.locator('#reviewsDrawBtn').click();
@@ -390,7 +391,7 @@ const server = http.createServer((request, response) => {
     try {
       await migration.route('**/reviews.js*', route => route.abort());
       await migration.route('https://www.gstatic.com/firebasejs/**', route => route.abort());
-      await migration.goto(url);
+      await migration.goto(reviewsUrl);
       await migration.evaluate(async () => {
         await new Promise((resolve, reject) => { const request = indexedDB.open('gb-studio-reviews-v1', 1); request.onupgradeneeded = () => { request.result.createObjectStore('items', { keyPath: 'id' }); request.result.createObjectStore('media'); }; request.onsuccess = () => { const db = request.result; const tx = db.transaction(['items', 'media'], 'readwrite'); tx.objectStore('items').put({ id: 'legacy-file', name: 'montaje-viejo.mp4', kind: 'video', size: 100, comments: [{ id: 'comment-1', text: 'Conservar comentario', time: 0, strokes: [], createdAt: '2026-01-01' }], createdAt: '2026-01-01', updatedAt: '2026-01-01' }); tx.objectStore('media').put(new Blob(['video original'], { type: 'video/mp4' }), 'legacy-file'); tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => reject(tx.error); }; request.onerror = () => reject(request.error); });
       });

@@ -165,6 +165,7 @@
     }
   }
   function showReviewsHome(projectId = null) {
+    if (document.documentElement.dataset.studioApp !== 'reviews') return;
     if (document.body.classList.contains('public-review')) return;
     if (document.body.classList.contains('auth-locked')) return;
     if (!canReview('reviewsView')) return;
@@ -822,7 +823,6 @@
   });
 
   $('#reviewsNav').addEventListener('click', () => isGuestReview() ? showReviews() : showReviewsHome());
-  $('#dashboardReviewsBtn').addEventListener('click', () => showReviewsHome());
   $('#reviewsBackVersions').addEventListener('click', () => showReviewsHome(state.projectId));
   $('#reviewsBackProjects').addEventListener('click', () => showReviewsHome());
   $('#reviewsCreateProject').addEventListener('click', () => openForm('project'));
@@ -908,7 +908,6 @@
   window.addEventListener('studio-auth-change', () => {
     $('#reviewsAdminBtn').hidden = window.STUDIO_ROLE !== 'admin';
     $('#reviewsNav').hidden = !canReview('reviewsView');
-    $('#dashboardReviewsBtn').hidden = !canReview('reviewsView');
     if (!window.STUDIO_SIGNED_IN) $('#reviewsAdminModal').hidden = true;
     if (sharedReview && window.STUDIO_SIGNED_IN) {
       const existing = state.records.find(record => !record.ephemeral && record.source === 'dropbox' && record.sourceUrl === sharedReview.sourceUrl);

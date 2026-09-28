@@ -1,6 +1,6 @@
 # GB Studio
 
-Un espacio de trabajo visual de GB Films con dos secciones: Storyboards para organizar tomas y Reviews para corregir fotos y videos.
+GB Studio tiene entradas independientes: [Storyboards](https://gb-films.github.io/StoryApp/) para organizar tomas y [Reviews](https://gb-films.github.io/StoryApp/?app=reviews) para corregir fotos y videos. Cada entrada muestra únicamente su plataforma; no hay navegación cruzada entre ellas. Los enlaces de Reviews compartidos anteriormente siguen abriendo el visor.
 
 ## Reviews
 
