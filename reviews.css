@@ -262,13 +262,17 @@ body.reviews-hud-hidden .reviews-main { min-height:0; }
 .reviews-tool:hover,.reviews-tool.is-active { border-color:#fff; background:#fff; color:#111; }
 .reviews-tool:focus-visible,.reviews-tool-menu button:focus-visible { outline:2px solid #fff; outline-offset:2px; }
 .reviews-tool-picker { position:relative; }
+.reviews-tool-picker[data-tool-group="brush"] { margin-left:5px; padding-left:10px; border-left:1px solid #444; }
 .reviews-tool-picker-button { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:105px; }
-.reviews-tool-picker-button>span { font-size:13px; line-height:1; }
+.reviews-tool-picker-button>span:last-child { font-size:13px; line-height:1; }
 .reviews-tool-menu { position:absolute; right:0; bottom:calc(100% + 8px); z-index:8; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; width:min(320px,calc(100vw - 24px)); padding:9px; border:1px solid #606060; border-radius:7px; background:#242424; box-shadow:0 12px 28px rgba(0,0,0,.55); }
+.reviews-shape-menu { grid-template-columns:repeat(2,minmax(0,1fr)); width:min(245px,calc(100vw - 24px)); }
 .reviews-tool-menu[hidden] { display:none; }
-.reviews-tool-menu button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:55px; padding:6px 3px; border:1px solid #4a4a4a; border-radius:4px; background:#303030; color:#eee; font:10px 'DM Mono',monospace; cursor:pointer; }
+.reviews-tool-menu button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:59px; padding:6px 3px; border:1px solid #4a4a4a; border-radius:4px; background:#303030; color:#eee; font:10px 'DM Mono',monospace; cursor:pointer; }
 .reviews-tool-menu button:hover,.reviews-tool-menu button[aria-pressed="true"] { border-color:#fff; background:#eee; color:#111; }
-.reviews-tool-menu button span { font:24px/1 'Space Grotesk',sans-serif; }
+.reviews-tool-menu button>span:first-child { font:24px/1 'Space Grotesk',sans-serif; }
+.reviews-tool-menu button .reviews-tool-name { font:10px 'DM Mono',monospace; }
+.reviews-tool-menu button small { font:8px 'DM Mono',monospace; opacity:.7; }
 .reviews-color-label { display:flex; align-items:center; gap:5px; color:#aaa; font:10px 'DM Mono',monospace; }
 .reviews-color-label input { width:24px; height:24px; padding:0; border:0; background:none; cursor:pointer; }
 .reviews-annotation-bar>span { position:absolute; top:0; left:0; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }

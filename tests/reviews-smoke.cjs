@@ -98,10 +98,11 @@ const server = http.createServer((request, response) => {
       await page.mouse.up();
     };
     const chooseTool = async tool => {
-      await page.locator('#reviewsToolPicker').click();
+      const picker = ['pen', 'highlighter', 'eraser'].includes(tool) ? '#reviewsToolPicker' : '#reviewsShapePicker';
+      await page.locator(picker).click();
       await page.locator(`[data-review-tool="${tool}"]`).click();
       assert.equal(await page.locator(`[data-review-tool="${tool}"]`).getAttribute('aria-pressed'), 'true');
-      assert.equal(await page.locator('#reviewsToolPicker').getAttribute('aria-expanded'), 'false');
+      assert.equal(await page.locator(picker).getAttribute('aria-expanded'), 'false');
     };
     const alphaAt = async (x, y) => page.evaluate(([px, py]) => {
       const canvas = document.querySelector('#reviewsCanvas');
@@ -127,8 +128,8 @@ const server = http.createServer((request, response) => {
     await page.locator('#reviewsUndoBtn').click();
     await page.keyboard.press('H');
     for (const [tool, sample] of [
-      ['line', [.45, .4]], ['rect', [.45, .2]], ['square', [.45, .2]],
-      ['circle', [.45, .2]], ['ellipse', [.45, .2]], ['arrow', [.45, .4]]
+      ['line', [.45, .4]], ['rect', [.45, .2]],
+      ['ellipse', [.45, .2]], ['arrow', [.45, .4]]
     ]) {
       await chooseTool(tool);
       await drawSegment(.2, .2, .7, .6);

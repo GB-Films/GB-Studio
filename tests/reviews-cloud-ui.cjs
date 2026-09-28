@@ -171,9 +171,46 @@ const fakeFirebaseAuth = `
     await namedGuest.locator('#reviewsGuestLogin').click();
     await namedGuest.locator('#reviewsCommentForm').waitFor({ state: 'visible' });
     assert.match(await namedGuest.locator('#reviewsCommentIdentity').textContent(), /Roberto/);
+    assert.match(await namedGuest.locator('#reviewsSketchBtn').getAttribute('title'), /no se guarda/);
+    assert.equal(await namedGuest.locator('#reviewsToolMenu [data-review-tool]').count(), 3, 'brushes are in their own picker');
+    assert.equal(await namedGuest.locator('#reviewsShapeMenu [data-review-tool]').count(), 4, 'the shapes have one rectangle and one ellipse option');
+    assert.equal(await namedGuest.locator('[data-review-tool="square"], [data-review-tool="circle"]').count(), 0);
+    await namedGuest.setViewportSize({ width: 390, height: 844 });
+    await namedGuest.locator('#reviewsShapePicker').click();
+    const shapeMenuBox = await namedGuest.locator('#reviewsShapeMenu').boundingBox();
+    assert.ok(shapeMenuBox.x >= 0 && shapeMenuBox.x + shapeMenuBox.width <= 391, 'shape tools fit a phone');
+    if (process.env.REVIEWS_SHAPES_SCREENSHOT) await namedGuest.screenshot({ path: process.env.REVIEWS_SHAPES_SCREENSHOT, fullPage: true });
+    await namedGuest.locator('#reviewsShapePicker').click();
+    await namedGuest.setViewportSize({ width: 1280, height: 720 });
+    const drawShape = async (tool, start, end, shift) => {
+      await namedGuest.locator('#reviewsShapePicker').click();
+      await namedGuest.locator(`[data-review-tool="${tool}"]`).click();
+      const bounds = await namedGuest.locator('#reviewsCanvas').boundingBox();
+      await namedGuest.mouse.move(bounds.x + bounds.width * start[0], bounds.y + bounds.height * start[1]);
+      if (shift) await namedGuest.keyboard.down('Shift');
+      await namedGuest.mouse.down();
+      await namedGuest.mouse.move(bounds.x + bounds.width * end[0], bounds.y + bounds.height * end[1], { steps: 5 });
+      await namedGuest.mouse.up();
+      if (shift) await namedGuest.keyboard.up('Shift');
+    };
+    await drawShape('rect', [.1, .1], [.5, .3], false);
+    await drawShape('rect', [.1, .4], [.5, .6], true);
+    await drawShape('ellipse', [.55, .1], [.9, .3], false);
+    await drawShape('ellipse', [.55, .4], [.9, .6], true);
     await namedGuest.locator('#reviewsCommentText').fill('Ajustar color');
     await namedGuest.locator('#reviewsCommentForm button[type=submit]').click();
     await namedGuest.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '1');
+    const shapes = await namedGuest.evaluate(() => {
+      const canvas = document.querySelector('#reviewsCanvas');
+      return JSON.parse(localStorage.getItem('test-cloud-comments'))[0].strokes.map(stroke => ({
+        tool: stroke.tool,
+        width: Math.abs(stroke.points[1][0] - stroke.points[0][0]) * canvas.clientWidth,
+        height: Math.abs(stroke.points[1][1] - stroke.points[0][1]) * canvas.clientHeight,
+      }));
+    });
+    assert.deepEqual(shapes.map(shape => shape.tool), ['rect', 'rect', 'ellipse', 'ellipse']);
+    assert.ok(Math.abs(shapes[0].width - shapes[0].height) > 20 && Math.abs(shapes[2].width - shapes[2].height) > 20, 'without Shift the shapes stay free');
+    assert.ok(Math.abs(shapes[1].width - shapes[1].height) < 2 && Math.abs(shapes[3].width - shapes[3].height) < 2, 'Shift keeps squares and circles exact');
     assert.match(await namedGuest.locator('.reviews-comment-meta').textContent(), /Roberto/);
     assert.equal(await namedGuest.locator('.reviews-comment-actions').count(), 0, 'a named guest cannot delete or resolve comments');
     await namedGuest.close();
