@@ -456,8 +456,20 @@
     const side = Math.min(Math.abs(dx), Math.abs(dy));
     return [start[0] + Math.sign(dx) * side / canvas.clientWidth, start[1] + Math.sign(dy) * side / canvas.clientHeight];
   }
-  function sectionDefinitions() { return [...(currentVersion()?.sections || []), { id: 'default', title: 'Sin clasificar' }]; }
-  function recordSection(record) { return record.sectionId || 'default'; }
+  function primarySectionId() {
+    const sections = currentVersion()?.sections || [];
+    if (sections.some(section => section.id === 'default' && section.isDefault)) return 'default';
+    const existing = sections.find(section => section.isDefault && section.id !== 'default')
+      || sections.find(section => section.id !== 'default' && section.title?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() === 'ultima version');
+    return existing?.id || 'default';
+  }
+  function sectionDefinitions() {
+    const sections = currentVersion()?.sections || [];
+    const primary = primarySectionId();
+    if (primary !== 'default') return [sections.find(section => section.id === primary), ...sections.filter(section => section.id !== primary && section.id !== 'default')];
+    return [{ id: 'default', title: sections.find(section => section.id === 'default')?.title || 'Última versión' }, ...sections.filter(section => section.id !== 'default')];
+  }
+  function recordSection(record) { return !record.sectionId || record.sectionId === 'default' ? primarySectionId() : record.sectionId; }
   function orderedRecords(sectionId) { return versionRecords().filter(record => recordSection(record) === sectionId).sort((a, b) => (Number.isFinite(a.sortIndex) ? a.sortIndex : -Date.parse(a.createdAt || a.updatedAt)) - (Number.isFinite(b.sortIndex) ? b.sortIndex : -Date.parse(b.createdAt || b.updatedAt))); }
   async function moveRecord(recordId, targetSectionId, beforeId = null) {
     if (isGuestReview() || !canReview('reviewsEdit')) return;
@@ -486,13 +498,15 @@
   function closeSectionForm() { sectionEditId = null; $('#reviewsSectionForm').hidden = true; }
   async function deleteSection(id) {
     const version = currentVersion(), section = version?.sections?.find(entry => entry.id === id); if (!section) return;
-    if (!await askConfirmation('¿Eliminar esta sección?', `Los archivos de “${section.title}” se moverán a Sin clasificar. No se borrarán los archivos ni sus comentarios.`, 'Eliminar sección')) return;
+    if (id === primarySectionId()) return;
+    const destination = sectionDefinitions().find(entry => entry.id === primarySectionId())?.title || 'Última versión';
+    if (!await askConfirmation('¿Eliminar esta sección?', `Los archivos de “${section.title}” se moverán a “${destination}”. No se borrarán los archivos ni sus comentarios.`, 'Eliminar sección')) return;
     const project = currentProject();
     const updatedProject = { ...project, versions: project.versions.map(entry => entry.id === version.id ? { ...entry, sections: entry.sections.filter(item => item.id !== id) } : entry) };
-    const moved = orderedRecords(id).map((record, index) => ({ ...record, sectionId: 'default', sortIndex: orderedRecords('default').length + index }));
+    const moved = orderedRecords(id).map((record, index) => ({ ...record, sectionId: primarySectionId(), sortIndex: orderedRecords(primarySectionId()).length + index }));
     try {
       if (version.shareToken) {
-        const api = await cloud(); await api.updateShareMetadata(updatedProject, updatedProject.versions.find(entry => entry.id === id));
+        const api = await cloud(); await api.updateShareMetadata(updatedProject, updatedProject.versions.find(entry => entry.id === version.id));
         for (const record of moved) await api.upsertSharedFile(version.shareToken, record);
       }
       if (window.STUDIO_SIGNED_IN) { const api = await cloud(); await api.saveStaffProject(updatedProject); for (const record of moved) await api.saveStaffFile(record); }
@@ -519,10 +533,10 @@
       const sectionRecords = currentVersion() ? orderedRecords(section.id) : records;
       const count = document.createElement('span'); count.textContent = String(sectionRecords.length);
       heading.append(title, count);
-      if (section.id !== 'default' && !isGuestReview() && canReview('reviewsEdit')) {
+      if (!isGuestReview() && canReview('reviewsEdit')) {
         const edit = cardAction('✎', `Renombrar sección ${section.title}`, () => openSectionForm(section));
-        const remove = cardAction('×', `Eliminar sección ${section.title}`, () => deleteSection(section.id));
-        heading.append(edit, remove);
+        heading.append(edit);
+        if (section.id !== primarySectionId()) heading.append(cardAction('×', `Eliminar sección ${section.title}`, () => deleteSection(section.id)));
       }
       const files = document.createElement('div'); files.className = 'reviews-section-files'; files.dataset.sectionId = section.id;
       if (!sectionRecords.length) { const empty = document.createElement('p'); empty.className = 'reviews-section-empty'; empty.textContent = records.length ? 'Arrastrá acá un archivo de esta review' : 'Vinculá un archivo de Dropbox'; files.append(empty); }
@@ -531,8 +545,9 @@
         const icon = document.createElement('span'); icon.className = 'reviews-file-icon'; icon.textContent = record.kind === 'video' ? '▶' : record.kind === 'model' ? '◇' : '▧';
         const copy = document.createElement('span'); copy.className = 'reviews-file-copy';
         const name = document.createElement('strong'); name.textContent = record.name;
-        const details = document.createElement('small'); details.textContent = `${record.source === 'dropbox' ? 'DROPBOX · ' : 'LOCAL ANTERIOR · '}${record.kind === 'video' ? 'VIDEO' : record.kind === 'model' ? 'FBX 3D' : 'FOTO'} · ${record.comments.length} comentario${record.comments.length === 1 ? '' : 's'}`;
-        copy.append(name, details); button.append(icon, copy); button.addEventListener('click', () => selectRecord(record.id)); files.append(button);
+        copy.append(name);
+        if (record.comments.length) { const details = document.createElement('small'); details.textContent = `${record.comments.length} comentario${record.comments.length === 1 ? '' : 's'}`; copy.append(details); }
+        button.append(icon, copy); button.addEventListener('click', () => selectRecord(record.id)); files.append(button);
       }
       group.append(heading, files); list.append(group);
     }
@@ -699,7 +714,7 @@
     const existing = state.records.find(record => record.versionId === state.versionId && record.source === 'dropbox' && record.sourceUrl === link.sourceUrl);
     if (existing) { await selectRecord(existing.id); message.textContent = 'Este archivo ya estaba vinculado; lo abrimos en el visor.'; return; }
     const now = new Date().toISOString();
-    const record = { id: crypto.randomUUID(), projectId: state.projectId, versionId: state.versionId, sectionId: 'default', sortIndex: -Date.now(), name: link.name, kind: $('#reviewsLinkKind').value, source: 'dropbox', sourceUrl: link.sourceUrl, size: 0, createdAt: now, updatedAt: now, comments: [] };
+    const record = { id: crypto.randomUUID(), projectId: state.projectId, versionId: state.versionId, sectionId: primarySectionId(), sortIndex: -Date.now(), name: link.name, kind: $('#reviewsLinkKind').value, source: 'dropbox', sourceUrl: link.sourceUrl, size: 0, createdAt: now, updatedAt: now, comments: [] };
     try {
       await saveRecord(record);
       state.records.unshift(record); await selectRecord(record.id);
@@ -1084,7 +1099,7 @@
         const old = state.projects.find(entry => entry.id === formMode.id);
         const project = { id: old?.id || crypto.randomUUID(), title, client, agency: $('#reviewsEntityAgency').value.trim(), director: $('#reviewsEntityDirector').value.trim(), coverType,
           coverImage: coverType === 'image' ? coverDraft.image : '', coverColor: coverType === 'color' ? coverDraft.color : '',
-          createdAt: old?.createdAt || now, updatedAt: now, versions: old?.versions || [{ id: crypto.randomUUID(), title: 'Montaje · V1', category: 'Montaje', createdAt: now, updatedAt: now }] };
+          createdAt: old?.createdAt || now, updatedAt: now, versions: old?.versions || [{ id: crypto.randomUUID(), title: 'Montaje · V1', category: 'Montaje', sections: [{ id: 'default', title: 'Última versión', isDefault: true }], createdAt: now, updatedAt: now }] };
         if (old?.legacy) project.legacy = true;
         await saveProject(project);
         state.projects = old ? state.projects.map(entry => entry.id === old.id ? project : entry) : [...state.projects, project];
@@ -1092,7 +1107,7 @@
       } else {
         const project = currentProject(); if (!project) return;
         const old = project.versions.find(entry => entry.id === formMode.id);
-        const version = { ...old, id: old?.id || crypto.randomUUID(), title, category: $('#reviewsEntityCategory').value, createdAt: old?.createdAt || now, updatedAt: now };
+        const version = { ...old, id: old?.id || crypto.randomUUID(), title, category: $('#reviewsEntityCategory').value, sections: old?.sections || [{ id: 'default', title: 'Última versión', isDefault: true }], createdAt: old?.createdAt || now, updatedAt: now };
         const updated = { ...project, updatedAt: now, versions: old ? project.versions.map(entry => entry.id === old.id ? version : entry) : [...project.versions, version] };
         await saveProject(updated);
         state.projects = state.projects.map(entry => entry.id === updated.id ? updated : entry);
@@ -1126,7 +1141,12 @@
     event.preventDefault(); const version = currentVersion(), project = currentProject(), title = $('#reviewsSectionName').value.trim();
     if (!version || !project || !title) return;
     const sections = [...(version.sections || [])];
-    if (sectionEditId) { const item = sections.find(section => section.id === sectionEditId); if (!item) return; item.title = title; }
+    if (sectionEditId) {
+      const item = sections.find(section => section.id === sectionEditId);
+      if (item) { item.title = title; if (sectionEditId === primarySectionId()) item.isDefault = true; }
+      else if (sectionEditId === 'default') sections.unshift({ id: 'default', title, isDefault: true });
+      else return;
+    }
     else sections.push({ id: crypto.randomUUID(), title });
     const updated = { ...project, updatedAt: new Date().toISOString(), versions: project.versions.map(entry => entry.id === version.id ? { ...entry, sections } : entry) };
     try { await saveProject(updated); state.projects = state.projects.map(entry => entry.id === project.id ? updated : entry); closeSectionForm(); renderList(); }
