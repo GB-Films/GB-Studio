@@ -374,6 +374,8 @@ function canViewVisto() { return canEditVisto() || window.STUDIO_PERMISSIONS?.st
 const cloudProjectTimers = new Map();
 const cloudProjectWrites = new Map();
 let cloudLoadGeneration = 0;
+let vistoProjectsReady = false;
+let vistoProjectsError = '';
 function pendingCloudIds() {
   try { return new Set(JSON.parse(localStorage.getItem(VISTO_PENDING_UPLOADS_KEY) || '[]')); }
   catch { return new Set(); }
@@ -445,6 +447,8 @@ async function loadSharedStoryboards() {
         showToast('Algunos proyectos no se pudieron compartir. Revisá la conexión.');
       });
     } else projects = shared;
+    vistoProjectsReady = true;
+    vistoProjectsError = '';
     if (project) {
       const refreshed = projects.find(entry => entry.id === project.id);
       if (refreshed) { project = refreshed; currentPageIndex = Math.min(currentPageIndex, project.pages.length - 1); render(); }
@@ -453,7 +457,11 @@ async function loadSharedStoryboards() {
     if (!$('#dashboardView').hidden) renderDashboard();
   } catch (error) {
     console.error('Could not load shared Visto projects', error);
-    if (generation === cloudLoadGeneration) showToast('No se pudieron cargar los proyectos compartidos.');
+    if (generation === cloudLoadGeneration) {
+      vistoProjectsError = 'No se pudieron cargar los proyectos. Recargá la página para intentar de nuevo.';
+      if (!$('#dashboardView').hidden) renderDashboard();
+      showToast('No se pudieron cargar los proyectos compartidos.');
+    }
   }
 }
 
@@ -529,13 +537,15 @@ function persistProjects(syncCloud = true) {
   if (syncCloud) projects.forEach(queueCloudProject);
 }
 
-function openIndexedDb(callback) {
-  if (!('indexedDB' in window)) return;
+function openIndexedDb(callback, onError = () => {}) {
+  if (!('indexedDB' in window)) { onError(); return; }
   try {
     const request = window.indexedDB.open(INDEXED_DB_NAME, 1);
     request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains('workspace')) request.result.createObjectStore('workspace'); };
     request.onsuccess = () => callback(request.result);
-  } catch { /* LocalStorage remains the fallback. */ }
+    request.onerror = onError;
+    request.onblocked = onError;
+  } catch { onError(); }
 }
 
 function writeIndexedDbSnapshot() {
@@ -552,7 +562,10 @@ function writeIndexedDbSnapshot() {
 function hydrateProjectsFromIndexedDb(callback = () => {}) {
   if (!canEditVisto() || indexedDbHydrationStarted) { callback(); return; }
   indexedDbHydrationStarted = true;
+  let finished = false;
+  const finish = () => { if (!finished) { finished = true; callback(); } };
   openIndexedDb(db => {
+    if (finished) { db.close(); return; }
     try {
       const request = db.transaction('workspace', 'readonly').objectStore('workspace').get('projects');
       request.onsuccess = () => {
@@ -564,12 +577,11 @@ function hydrateProjectsFromIndexedDb(callback = () => {}) {
           renderDashboard();
         }
         db.close();
-        callback();
+        finish();
       };
-      request.onerror = () => { db.close(); callback(); };
-    } catch { db.close(); callback(); }
-  });
-  if (!('indexedDB' in window)) callback();
+      request.onerror = () => { db.close(); finish(); };
+    } catch { db.close(); finish(); }
+  }, finish);
 }
 
 function showToast(message) {
@@ -685,6 +697,14 @@ function assetAspect(asset) {
 function renderDashboard() {
   const grid = $('#projectGrid');
   if (!grid) return;
+  const loading = canViewVisto() && !vistoProjectsReady;
+  $('#dashboardView').classList.toggle('is-loading', loading);
+  $('#dashboardLoading').hidden = !loading;
+  if (loading) {
+    $('#dashboardLoading').textContent = vistoProjectsError || 'Cargando proyectos de Visto…';
+    $('#dashboardEmpty').hidden = true;
+    return;
+  }
   const groups = projectGroups();
   $('#projectCount').textContent = `${groups.length} proyecto${groups.length === 1 ? '' : 's'}`;
   $('#dashboardEmpty').hidden = groups.length > 0;
@@ -2423,6 +2443,7 @@ document.addEventListener('keydown', event => {
 window.addEventListener('studio-auth-change', () => {
   const allowed = canViewVisto();
   const editor = canEditVisto();
+  if (allowed) { vistoProjectsReady = false; vistoProjectsError = ''; }
   document.body.classList.toggle('visto-read-only', allowed && !editor);
   $('#storyboardsNav').hidden = !allowed;
   $('#dashboardCreateBtn').hidden = !editor;
@@ -2438,6 +2459,7 @@ window.addEventListener('studio-auth-change', () => {
     return;
   }
   cloudLoadGeneration++;
+  vistoProjectsReady = false;
   projects = [];
   project = null;
   if (!$('#dashboardView').hidden) renderDashboard();

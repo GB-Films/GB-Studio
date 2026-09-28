@@ -12,6 +12,8 @@
   let databasePromise;
   let initialized;
   let hydratedUserUid = null;
+  let reviewsLibraryReady = false;
+  let reviewsLibraryError = '';
 
   function openDatabase() {
     if (!databasePromise) databasePromise = new Promise((resolve, reject) => {
@@ -171,6 +173,14 @@
   }
   function cardAction(label, title, handler) { const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.setAttribute('aria-label', title); button.addEventListener('click', handler); return button; }
   function renderHome() {
+    const waitingForProjects = !reviewsLibraryReady && !isGuestReview();
+    $('#reviewsHome').classList.toggle('is-loading', waitingForProjects);
+    $('#reviewsHomeLoading').hidden = !waitingForProjects;
+    if (waitingForProjects) {
+      $('#reviewsHomeLoading').textContent = reviewsLibraryError || 'Cargando proyectos de Mira…';
+      $('#reviewsHomeEmpty').hidden = true;
+      return;
+    }
     const project = currentProject();
     const clientOnly = canReview('reviewsClient') && !canReview('reviewsView');
     const grid = $('#reviewsHomeGrid'); grid.replaceChildren();
@@ -1130,6 +1140,8 @@
     $('#reviewsNav').hidden = !canEnterReviews();
     if (!window.STUDIO_SIGNED_IN) { $('#reviewsAdminModal').hidden = true; $('#reviewsPersonModal').hidden = true; }
     const accessKey = `${window.STUDIO_USER?.uid || ''}:${JSON.stringify(window.STUDIO_PERMISSIONS || {})}:${JSON.stringify(window.STUDIO_REVIEW_TOKENS || [])}`;
+    const needsHydration = window.STUDIO_SIGNED_IN && canEnterReviews() && !isGuestReview() && accessKey !== hydratedUserUid;
+    if (needsHydration) { reviewsLibraryReady = false; reviewsLibraryError = ''; }
     if (sharedReview && window.STUDIO_SIGNED_IN) {
       const existing = state.records.find(record => !record.ephemeral && record.source === 'dropbox' && record.sourceUrl === sharedReview.sourceUrl);
       if (existing && state.active?.id !== existing.id) selectRecord(existing.id);
@@ -1139,7 +1151,7 @@
     }
     applyReviewPermissions();
     if (!$('#reviewsHome').hidden && canEnterReviews()) renderHome();
-    if (window.STUDIO_SIGNED_IN && canEnterReviews() && !isGuestReview() && accessKey !== hydratedUserUid) {
+    if (needsHydration) {
       hydratedUserUid = accessKey;
       Promise.resolve(initialized).then(async () => {
         if (accessKey !== hydratedUserUid || !canEnterReviews()) return;
@@ -1177,9 +1189,17 @@
           }
         }
         if (state.active) state.active = state.records.find(record => record.id === state.active.id) || state.active;
+        reviewsLibraryReady = true;
+        reviewsLibraryError = '';
         if (!$('#reviewsHome').hidden) renderHome();
-      }).catch(error => { hydratedUserUid = null; console.error('Could not load shared reviews', error); });
-    } else if (!window.STUDIO_SIGNED_IN || !canEnterReviews()) hydratedUserUid = null;
+      }).catch(error => {
+        if (accessKey !== hydratedUserUid) return;
+        hydratedUserUid = null;
+        reviewsLibraryError = 'No se pudieron cargar los proyectos. Recargá la página para intentar de nuevo.';
+        console.error('Could not load shared reviews', error);
+        if (!$('#reviewsHome').hidden) renderHome();
+      });
+    } else if (!window.STUDIO_SIGNED_IN || !canEnterReviews()) { hydratedUserUid = null; reviewsLibraryReady = false; }
   });
   $('#reviewsShareBtn').addEventListener('click', () => shareVersion());
   $('#reviewsInBtn').addEventListener('click', () => setRangePoint('in'));
