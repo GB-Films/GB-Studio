@@ -22,15 +22,18 @@ const fakeCloud = `
   export async function saveStaffFile(file) { upsert('files', file); }
   export async function listStaffFiles() { return load('files'); }
   export async function deleteStaffFile(id) { save('files', load('files').filter(item => item.id !== id)); }
-  export async function listSharedReviews() { return []; }
+  export async function listReviewShares() { return load('published'); }
+  export async function listSharedReviews(tokens = null) { return load('published').filter(share => !tokens || tokens.includes(share.token)); }
   export async function staffList() { return load('staff'); }
-  export const ALL_PERMISSIONS = { storyboards: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true };
+  export const ALL_PERMISSIONS = { storyboards: true, reviewsClient: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true };
   export async function accessRequests() { return load('requests'); }
-  export async function saveStaff(email, permissions, name = '') { save('staff', [...load('staff').filter(item => item.email !== email), { email, name, permissions }]); }
-  export async function removeStaff(email) { save('staff', load('staff').filter(item => item.email !== email)); }
+  export async function saveStaff(email, permissions, name = '', options = {}) { save('staff', [...load('staff').filter(item => item.email !== email), { email, name, permissions, active: options.active, roles: options.roles, reviewTokens: options.reviewTokens }]); }
+  export async function removeStaff(email) { save('staff', load('staff').filter(item => item.email !== email)); save('requests', load('requests').filter(item => item.email !== email)); }
   export async function publishReview(project, version, records) {
-    save('published', [...load('published'), { project: project.title, version: version.title, fileCount: records.length }]);
-    return 'A'.repeat(43);
+    const share = { token: 'A'.repeat(43), projectId: project.id, versionId: version.id, projectTitle: project.title,
+      versionTitle: version.title, category: version.category, updatedAt: new Date().toISOString(), active: true,
+      fileCount: records.length, files: records.map(record => ({ ...record, comments: [] })) };
+    save('published', [...load('published'), share]); return share.token;
   }
   export async function updateShareMetadata() {}
   export async function upsertSharedFile() {}
@@ -45,7 +48,7 @@ const fakeCloud = `
     let page = await context.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await context.route('https://www.gstatic.com/firebasejs/**', route => route.abort());
-    await context.route('**/reviews-cloud.js?v=3', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: fakeCloud }));
+    await context.route('**/reviews-cloud.js?v=4', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: fakeCloud }));
     await context.route('https://www.dropbox.com/scl/fi/**', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"></svg>' }));
     const url = `http://127.0.0.1:${server.address().port}`;
     const reviewsUrl = `${url}/?app=reviews`;
@@ -53,7 +56,7 @@ const fakeCloud = `
       await page.waitForTimeout(350);
       await page.evaluate(() => {
         document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true;
-        window.STUDIO_SIGNED_IN = true; window.STUDIO_ROLE = 'admin'; window.STUDIO_PERMISSIONS = { storyboards: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true }; window.STUDIO_USER = { uid: 'test-admin', email: 'info@granbertafilms.com', displayName: 'Admin' };
+        window.STUDIO_SIGNED_IN = true; window.STUDIO_ROLE = 'admin'; window.STUDIO_PERMISSIONS = { storyboards: true, reviewsClient: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true }; window.STUDIO_REVIEW_TOKENS = []; window.STUDIO_USER = { uid: 'test-admin', email: 'info@granbertafilms.com', displayName: 'Admin' };
         window.dispatchEvent(new Event('studio-auth-change'));
       });
     };
@@ -81,21 +84,40 @@ const fakeCloud = `
     await page.locator('#reviewsCopyDone').click();
     await page.locator('#reviewsAdminBtn').click();
     await page.locator('#reviewsAdminModal').waitFor({ state: 'visible' });
-    await page.locator('#reviewsStaffEmail').fill('equipo@granbertafilms.com');
-    await page.locator('#reviewsStaffNewPermissions [data-permission="reviewsCreate"]').check();
-    await page.locator('#reviewsStaffForm button[type=submit]').click();
+    await page.locator('#reviewsAddPerson').click();
+    await page.locator('#reviewsPersonEmail').fill('equipo@granbertafilms.com');
+    await page.locator('#reviewsPersonName').fill('Equipo');
+    await page.locator('#reviewsPersonReviewsRole').selectOption('manager');
+    await page.locator('#reviewsPersonSave').click();
     await page.locator('.reviews-staff-row').filter({ hasText: 'equipo@granbertafilms.com' }).waitFor();
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-staff'))[0].permissions.reviewsCreate), true);
-    await page.locator('.reviews-staff-row .reviews-staff-remove').click();
+    await page.locator('.reviews-staff-row').filter({ hasText: 'equipo@granbertafilms.com' }).click();
+    await page.locator('#reviewsPersonReviewsRole').selectOption('client');
+    if (process.env.REVIEWS_PERSON_SCREENSHOT) await page.screenshot({ path: process.env.REVIEWS_PERSON_SCREENSHOT, fullPage: true });
+    await page.locator('#reviewsPersonShareList input').check();
+    await page.locator('#reviewsPersonSave').click();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('test-cloud-staff'))?.[0]?.permissions?.reviewsClient === true);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-staff'))[0].permissions.reviewsClient), true);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-staff'))[0].permissions.reviewsView), false);
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-staff'))[0].reviewTokens), ['A'.repeat(43)]);
+    await page.locator('.reviews-staff-row').filter({ hasText: 'equipo@granbertafilms.com' }).click();
+    await page.locator('#reviewsPersonActive').uncheck();
+    await page.locator('#reviewsPersonSave').click();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('test-cloud-staff'))?.[0]?.active === false);
+    assert.match(await page.locator('.reviews-staff-row').filter({ hasText: 'equipo@granbertafilms.com' }).textContent(), /Desactivado/);
+    await page.locator('.reviews-staff-row').filter({ hasText: 'equipo@granbertafilms.com' }).click();
+    await page.locator('#reviewsPersonRemove').click();
     await page.locator('#reviewsConfirmAccept').click();
-    await page.waitForFunction(() => document.querySelectorAll('.reviews-staff-row').length === 0);
+    await page.waitForFunction(() => document.querySelectorAll('.reviews-staff-row').length === 1);
     await page.locator('#reviewsAdminClose').click();
     await page.evaluate(() => localStorage.setItem('test-cloud-requests', JSON.stringify([{ uid: 'pending-1', email: 'nueva@example.com', name: 'Nueva persona' }])));
     await page.locator('#reviewsAdminBtn').click();
     const pending = page.locator('.reviews-staff-row').filter({ hasText: 'nueva@example.com' });
     assert.match(await pending.textContent(), /Pendiente/);
-    await pending.locator('[data-permission="storyboards"]').check();
-    await pending.getByRole('button', { name: 'Habilitar cuenta' }).click();
+    await pending.click();
+    await page.locator('#reviewsPersonStoryboardsRole').selectOption('editor');
+    await page.locator('#reviewsPersonSave').click();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('test-cloud-staff'))?.[0]?.permissions?.storyboards === true);
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-staff'))[0].permissions.storyboards), true);
     if (process.env.REVIEWS_ADMIN_SCREENSHOT) await page.screenshot({ path: process.env.REVIEWS_ADMIN_SCREENSHOT, fullPage: true });
     await page.locator('#reviewsAdminClose').click();
@@ -110,14 +132,23 @@ const fakeCloud = `
     await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Montaje · V1' }).click();
     assert.equal(await page.locator('#reviewsCount').textContent(), '1', 'an authorized team member sees a cloud project without local IndexedDB data');
     await page.evaluate(() => {
-      window.STUDIO_ROLE = 'staff'; window.STUDIO_PERMISSIONS = { storyboards: false, reviewsView: true, reviewsCreate: false, reviewsEdit: false, reviewsShare: false };
+      const projects = JSON.parse(localStorage.getItem('test-cloud-projects'));
+      localStorage.setItem('test-cloud-projects', JSON.stringify([...projects, { id: 'private-project', title: 'Proyecto no asignado', client: 'Otro cliente', updatedAt: new Date().toISOString(), versions: [] }]));
+      const published = JSON.parse(localStorage.getItem('test-cloud-published'));
+      localStorage.setItem('test-cloud-published', JSON.stringify([...published, { token: 'B'.repeat(43), projectId: 'private-project', versionId: 'private-review', projectTitle: 'Proyecto no asignado', versionTitle: 'Review privada', category: 'General', updatedAt: new Date().toISOString(), active: true, files: [] }]));
+      window.STUDIO_ROLE = 'staff'; window.STUDIO_PERMISSIONS = { storyboards: false, reviewsClient: true, reviewsView: false, reviewsCreate: false, reviewsEdit: false, reviewsShare: false }; window.STUDIO_REVIEW_TOKENS = ['A'.repeat(43)];
       window.STUDIO_USER = { uid: 'test-reader', email: 'reader@example.com', displayName: 'Reader' };
       window.dispatchEvent(new Event('studio-auth-change'));
     });
     await page.locator('#reviewsNav').click();
+    await page.waitForFunction(() => document.querySelectorAll('#reviewsHomeGrid .reviews-home-card-open').length === 1);
+    assert.equal(await page.locator('#reviewsHomeGrid').getByText('Proyecto no asignado').count(), 0);
     assert.equal(await page.locator('#storyboardsNav').isVisible(), false);
     assert.equal(await page.locator('#reviewsCreateProject').isVisible(), false);
     assert.equal(await page.locator('#reviewsHomeGrid .reviews-home-card-actions').count(), 0);
+    await page.locator('#reviewsHomeGrid .reviews-home-card-open').click();
+    await page.locator('#reviewsHomeGrid .reviews-home-card-open').click();
+    await page.locator('#reviewsCommentForm').waitFor({ state: 'visible' });
     assert.deepEqual(errors, []);
     console.log('Cloud UI passed: project/file sync, share link, and restore from another local state.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

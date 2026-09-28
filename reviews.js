@@ -38,8 +38,9 @@
       transaction.onabort = () => reject(transaction.error || new Error('No se pudo guardar el archivo'));
     });
   }
-  const cloud = () => import('./reviews-cloud.js?v=3');
+  const cloud = () => import('./reviews-cloud.js?v=4');
   const canReview = key => window.STUDIO_ROLE === 'admin' || window.STUDIO_PERMISSIONS?.[key] === true;
+  const canEnterReviews = () => canReview('reviewsView') || canReview('reviewsClient');
   async function saveRecord(record) {
     if (!canReview('reviewsEdit')) throw new Error('No tenés permiso para editar Reviews.');
     const token = state.projects.find(project => project.id === record.projectId)?.versions.find(version => version.id === record.versionId)?.shareToken;
@@ -127,9 +128,10 @@
   function cardAction(label, title, handler) { const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.setAttribute('aria-label', title); button.addEventListener('click', handler); return button; }
   function renderHome() {
     const project = currentProject();
+    const clientOnly = canReview('reviewsClient') && !canReview('reviewsView');
     const grid = $('#reviewsHomeGrid'); grid.replaceChildren();
     $('#reviewsHomeTitle').textContent = project ? project.title : 'Proyectos de review';
-    $('#reviewsHomeCopy').textContent = project ? 'Elegí una review o creá otra para una etapa distinta. Cada review tiene sus archivos y comentarios.' : 'Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.';
+    $('#reviewsHomeCopy').textContent = clientOnly ? 'Estas son las reviews que el equipo compartió con vos.' : project ? 'Elegí una review o creá otra para una etapa distinta. Cada review tiene sus archivos y comentarios.' : 'Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.';
     $('#reviewsCreateProject').hidden = Boolean(project) || !canReview('reviewsCreate');
     $('#reviewsCreateVersion').hidden = !canReview('reviewsCreate');
     $('#reviewsProjectContext').hidden = !project;
@@ -138,8 +140,8 @@
     $('#reviewsHomeCount').textContent = `${entries.length} ${project ? entries.length === 1 ? 'review' : 'reviews' : entries.length === 1 ? 'proyecto' : 'proyectos'}`;
     $('#reviewsHomeEmpty').hidden = entries.length > 0;
     $('#reviewsEmptyCreate').textContent = project ? '＋ Crear review' : '＋ Crear proyecto';
-    $('#reviewsHomeEmpty h2').textContent = project ? 'Todavía no hay reviews.' : 'Un lugar para cada devolución.';
-    $('#reviewsHomeEmpty p').textContent = project ? 'Creá una review de montaje, VFX o cliente para empezar a cargar material.' : 'Creá un proyecto y después abrí reviews distintas para montaje, VFX o cliente.';
+    $('#reviewsHomeEmpty h2').textContent = clientOnly ? 'Todavía no hay reviews asignadas.' : project ? 'Todavía no hay reviews.' : 'Un lugar para cada devolución.';
+    $('#reviewsHomeEmpty p').textContent = clientOnly ? 'Cuando el equipo te asigne una review, la vas a encontrar acá.' : project ? 'Creá una review de montaje, VFX o cliente para empezar a cargar material.' : 'Creá un proyecto y después abrí reviews distintas para montaje, VFX o cliente.';
     $('#reviewsEmptyCreate').hidden = !canReview('reviewsCreate');
     if (project) $('#reviewsProjectMeta').textContent = [project.client && `CLIENTE · ${project.client}`, project.agency && `AGENCIA · ${project.agency}`, project.director && `DIRECTOR · ${project.director}`, 'GRAN BERTA FILMS'].filter(Boolean).join('  /  ');
     for (const entry of entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
@@ -167,7 +169,7 @@
     if (document.documentElement.dataset.studioApp !== 'reviews') return;
     if (document.body.classList.contains('public-review')) return;
     if (document.body.classList.contains('auth-locked')) return;
-    if (!canReview('reviewsView')) return;
+    if (!canEnterReviews()) return;
     showDashboard();
     stopMedia(); state.active = null; state.projectId = projectId; state.versionId = null;
     $('#dashboardView').hidden = true; $('#reviewsHome').hidden = false; $('#reviewsView').hidden = true;
@@ -262,7 +264,7 @@
     } catch (error) { console.error(error); $('#reviewsHomeCopy').textContent = 'No se pudo eliminar esta review. Revisá el almacenamiento del navegador.'; }
   }
   function isGuestReview() { return document.body.classList.contains('public-review'); }
-  function canComment() { return isGuestReview() ? Boolean(state.shareToken && (state.guestName || window.STUDIO_SIGNED_IN)) : canReview('reviewsEdit'); }
+  function canComment() { return isGuestReview() ? Boolean(state.shareToken && (state.guestName || window.STUDIO_SIGNED_IN)) : canReview('reviewsEdit') || (canReview('reviewsClient') && Boolean(currentVersion()?.shareToken)); }
   function applyReviewPermissions() {
     const guest = isGuestReview();
     $('#reviewsGuestPrompt').hidden = !guest || canComment() || !state.shareToken;
@@ -479,7 +481,7 @@
       const text = document.createElement('span'); text.className = 'reviews-comment-text'; text.textContent = comment.text || 'Anotación visual';
       open.append(meta, text); open.addEventListener('click', () => selectComment(comment.id));
       card.append(open);
-      if (canReview('reviewsEdit') || (isGuestReview() && comment.authorUid && comment.authorUid === state.guestUid)) {
+      if (canReview('reviewsEdit') || (isGuestReview() && comment.authorUid && comment.authorUid === state.guestUid) || (canReview('reviewsClient') && comment.authorUid === window.STUDIO_USER?.uid)) {
         const actions = document.createElement('div'); actions.className = 'reviews-comment-actions';
         const resolve = document.createElement('button'); resolve.type = 'button'; resolve.textContent = comment.resolved ? 'Reabrir' : 'Resolver'; resolve.addEventListener('click', () => updateComment(comment.id, entry => { entry.resolved = !entry.resolved; }));
         const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Eliminar'; remove.addEventListener('click', () => updateComment(comment.id, null));
@@ -650,7 +652,7 @@
   function showReviews() {
     const publicView = document.body.classList.contains('public-review');
     if (document.body.classList.contains('auth-locked') && !publicView) return;
-    if (!publicView && !canReview('reviewsView')) return;
+    if (!publicView && !canEnterReviews()) return;
     showDashboard();
     if (publicView) document.body.classList.add('public-review');
     $('#dashboardView').hidden = true; $('#reviewsHome').hidden = true; $('#reviewsView').hidden = false; document.body.classList.add('reviews-open');
@@ -758,80 +760,145 @@
   function toggleHud() { const hidden = document.body.classList.toggle('reviews-hud-hidden'); $('#reviewsHudRestore').hidden = !hidden; requestAnimationFrame(fitSurface); }
   function isEditingText(target) { return target?.closest?.('input,textarea,select,[contenteditable="true"]'); }
 
-  const permissionLabels = [
-    ['storyboards', 'Storyboards · usar y crear'],
-    ['reviewsView', 'Reviews · ver proyectos'],
-    ['reviewsCreate', 'Reviews · crear proyectos y reviews'],
-    ['reviewsEdit', 'Reviews · editar y comentar'],
-    ['reviewsShare', 'Reviews · compartir enlaces'],
+  const reviewPermissionLabels = [
+    ['reviewsView', 'Ver toda la biblioteca'], ['reviewsCreate', 'Crear proyectos y reviews'],
+    ['reviewsEdit', 'Editar material y comentarios'], ['reviewsShare', 'Compartir enlaces'],
   ];
-  function permissionControls(container, values = {}) {
-    for (const [key, label] of permissionLabels) {
-      const wrapper = document.createElement('label'); wrapper.className = 'reviews-staff-permission';
-      const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.dataset.permission = key; checkbox.checked = values[key] === true;
+  const reviewRolePermissions = {
+    none: {}, client: { reviewsClient: true }, viewer: { reviewsView: true },
+    collaborator: { reviewsView: true, reviewsEdit: true },
+    manager: { reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true },
+  };
+  const reviewRoleLabels = { none: 'Sin acceso', client: 'Cliente', viewer: 'Lectura', collaborator: 'Colaborador/a', manager: 'Ejecutiva / Gerencia', custom: 'Personalizado' };
+  let staffPeople = [];
+  let shareChoices = [];
+  let selectedPerson = null;
+
+  function reviewRoleFor(permissions = {}) {
+    if (permissions.reviewsClient && !permissions.reviewsView) return 'client';
+    const keys = ['reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'];
+    for (const role of ['none', 'viewer', 'collaborator', 'manager']) {
+      if (keys.every(key => Boolean(permissions[key]) === Boolean(reviewRolePermissions[role][key]))) return role;
+    }
+    return 'custom';
+  }
+  function customPermissions(values = {}) {
+    const container = $('#reviewsCustomPermissions'); container.replaceChildren();
+    for (const [key, label] of reviewPermissionLabels) {
+      const row = document.createElement('label');
+      const box = document.createElement('input'); box.type = 'checkbox'; box.dataset.permission = key; box.checked = values[key] === true;
       const caption = document.createElement('span'); caption.textContent = label;
-      wrapper.append(checkbox, caption); container.append(wrapper);
-      checkbox.addEventListener('change', () => {
-        if (key.startsWith('reviews') && key !== 'reviewsView' && checkbox.checked) container.querySelector('[data-permission="reviewsView"]').checked = true;
-        if ((key === 'reviewsCreate' || key === 'reviewsShare') && checkbox.checked) container.querySelector('[data-permission="reviewsEdit"]').checked = true;
-        if (key === 'reviewsEdit' && !checkbox.checked) for (const dependent of ['reviewsCreate', 'reviewsShare']) container.querySelector(`[data-permission="${dependent}"]`).checked = false;
-        if (key === 'reviewsView' && !checkbox.checked) container.querySelectorAll('[data-permission^="reviews"]:not([data-permission="reviewsView"])').forEach(input => { input.checked = false; });
+      row.append(box, caption); container.append(row);
+      box.addEventListener('change', () => {
+        const input = permission => container.querySelector(`[data-permission="${permission}"]`);
+        if (box.checked && key !== 'reviewsView') input('reviewsView').checked = true;
+        if (box.checked && (key === 'reviewsCreate' || key === 'reviewsShare')) input('reviewsEdit').checked = true;
+        if (!box.checked && key === 'reviewsEdit') for (const dependent of ['reviewsCreate', 'reviewsShare']) input(dependent).checked = false;
+        if (!box.checked && key === 'reviewsView') for (const dependent of ['reviewsCreate', 'reviewsEdit', 'reviewsShare']) input(dependent).checked = false;
       });
     }
   }
-  function selectedPermissions(container) {
-    return Object.fromEntries([...container.querySelectorAll('[data-permission]')].map(input => [input.dataset.permission, input.checked]));
-  }
-  async function refreshStaffList() {
-    const list = $('#reviewsStaffList'); list.replaceChildren();
-    const api = await cloud();
-    const [staff, requests] = await Promise.all([api.staffList(), api.accessRequests()]);
-    const staffByEmail = new Map(staff.map(person => [person.email, person]));
-    const people = [...staff, ...requests.filter(person => !staffByEmail.has(person.email))]
-      .map(person => ({ ...person, pending: !staffByEmail.has(person.email) }))
-      .sort((a, b) => Number(b.pending) - Number(a.pending) || (a.name || a.email).localeCompare(b.name || b.email));
-    const pendingCount = people.filter(person => person.pending).length;
-    $('#reviewsStaffCount').textContent = `${staff.length} activas · ${pendingCount} pendientes`;
-    if (!people.length) { const empty = document.createElement('p'); empty.textContent = 'Todavía no hay cuentas registradas.'; list.append(empty); }
-    for (const person of people) {
-      const row = document.createElement('div'); row.className = 'reviews-staff-row'; row.dataset.search = `${person.name || ''} ${person.email}`.toLowerCase();
-      const head = document.createElement('div'); head.className = 'reviews-staff-head';
-      const identity = document.createElement('div');
-      const name = document.createElement('strong'); name.textContent = person.name || person.email;
-      const email = document.createElement('small'); email.textContent = person.email;
-      identity.append(name, email);
-      const status = document.createElement('span'); status.className = `reviews-staff-state${person.pending ? ' is-pending' : ''}`; status.textContent = person.pending ? 'Pendiente' : 'Activo';
-      head.append(identity, status);
-      const options = document.createElement('div'); options.className = 'reviews-staff-permissions';
-      permissionControls(options, person.permissions || (person.pending ? {} : api.ALL_PERMISSIONS));
-      const actions = document.createElement('div'); actions.className = 'reviews-staff-actions';
-      const save = document.createElement('button'); save.type = 'button'; save.className = 'button button-primary'; save.textContent = person.pending ? 'Habilitar cuenta' : 'Guardar permisos';
-      save.addEventListener('click', async () => {
-        save.disabled = true;
-        try { await api.saveStaff(person.email, selectedPermissions(options), person.name || ''); $('#reviewsStaffStatus').textContent = `Permisos de ${person.email} guardados.`; await refreshStaffList(); }
-        catch (error) { $('#reviewsStaffStatus').textContent = error.message || 'No se pudieron guardar los permisos.'; console.error(error); }
-        finally { save.disabled = false; }
-      });
-      actions.append(save);
-      if (!person.pending) {
-        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'reviews-staff-remove'; remove.textContent = 'Quitar acceso';
-        remove.addEventListener('click', async () => {
-          if (!await askConfirmation('¿Quitar el acceso?', `${person.email} dejará de poder entrar a GB Studio con Google.`)) return;
-          try { await api.removeStaff(person.email); $('#reviewsStaffStatus').textContent = 'Acceso quitado.'; await refreshStaffList(); }
-          catch (error) { console.error(error); $('#reviewsStaffStatus').textContent = 'No se pudo quitar el acceso.'; }
-        });
-        actions.append(remove);
-      }
-      row.append(head, options, actions); list.append(row);
+  function renderShareChoices(selectedTokens = []) {
+    const container = $('#reviewsPersonShareList'); container.replaceChildren();
+    if (!shareChoices.length) { const empty = document.createElement('p'); empty.textContent = 'Todavía no hay reviews compartidas. Compartí una review primero para asignarla.'; container.append(empty); return; }
+    for (const share of shareChoices.sort((a, b) => (a.projectTitle || '').localeCompare(b.projectTitle || ''))) {
+      const row = document.createElement('label');
+      const box = document.createElement('input'); box.type = 'checkbox'; box.value = share.token; box.checked = selectedTokens.includes(share.token);
+      const label = document.createElement('span'); label.textContent = `${share.projectTitle || 'Proyecto'} · ${share.versionTitle || 'Review'}`;
+      row.append(box, label); container.append(row);
     }
-    filterStaffList();
+  }
+  function updatePersonRoleFields() {
+    const role = $('#reviewsPersonReviewsRole').value;
+    $('#reviewsCustomPermissions').hidden = role !== 'custom';
+    $('#reviewsPersonShares').hidden = role !== 'client';
+    $('#reviewsPersonRoleHelp').textContent = role === 'client' ? 'En su cuenta solo verá y comentará las reviews asignadas. Los enlaces públicos siguen funcionando para quien los tenga.'
+      : role === 'viewer' ? 'Lectura permite ver todos los proyectos de Reviews.'
+      : role === 'collaborator' ? 'Puede ver y editar toda la biblioteca de Reviews.'
+      : role === 'manager' ? 'Puede ver, crear, editar y compartir toda la biblioteca de Reviews.'
+      : 'Storyboards tiene acceso completo de edición; Reviews usa el rol elegido.';
+  }
+  function personPermissions() {
+    const permissions = { storyboards: $('#reviewsPersonStoryboardsRole').value === 'editor', reviewsClient: false,
+      reviewsView: false, reviewsCreate: false, reviewsEdit: false, reviewsShare: false };
+    const role = $('#reviewsPersonReviewsRole').value;
+    const selected = role === 'custom'
+      ? Object.fromEntries([...$('#reviewsCustomPermissions').querySelectorAll('[data-permission]')].map(input => [input.dataset.permission, input.checked]))
+      : reviewRolePermissions[role];
+    Object.assign(permissions, selected);
+    return permissions;
+  }
+  function personState(person) {
+    return person.pending ? 'Pendiente' : person.active === false ? 'Desactivado' : 'Activo';
+  }
+  function closePerson() { $('#reviewsPersonModal').hidden = true; selectedPerson = null; }
+  function openPerson(person = null) {
+    selectedPerson = person;
+    const permissions = person?.permissions || (person?.pending ? {} : person ? { storyboards: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true } : {});
+    $('#reviewsPersonTitle').textContent = person?.name || person?.email || 'Nueva persona';
+    $('#reviewsPersonSummary').textContent = person ? person.email : 'Agregá una cuenta Google y elegí su acceso.';
+    $('#reviewsPersonState').textContent = person ? personState(person) : 'Nuevo';
+    $('#reviewsPersonName').value = person?.name || '';
+    $('#reviewsPersonEmail').value = person?.email || '';
+    $('#reviewsPersonEmail').readOnly = Boolean(person);
+    $('#reviewsPersonActive').checked = person?.active !== false;
+    $('#reviewsPersonStoryboardsRole').value = permissions.storyboards ? 'editor' : 'none';
+    $('#reviewsPersonReviewsRole').value = reviewRoleFor(permissions);
+    customPermissions(permissions);
+    renderShareChoices(person?.reviewTokens || []);
+    $('#reviewsPersonRemove').hidden = !person || person.pending;
+    $('#reviewsPersonStatus').textContent = '';
+    updatePersonRoleFields();
+    $('#reviewsPersonModal').hidden = false;
+    (person ? $('#reviewsPersonName') : $('#reviewsPersonEmail')).focus();
+  }
+  function createStaffRow(person, owner = false) {
+    const row = document.createElement(owner ? 'div' : 'button');
+    row.className = `reviews-staff-row${owner ? ' is-owner' : ''}`;
+    if (!owner) { row.type = 'button'; row.addEventListener('click', () => openPerson(person)); }
+    row.dataset.search = `${person.name || ''} ${person.email || ''}`.toLowerCase();
+    const identity = document.createElement('div'); identity.className = 'reviews-staff-person';
+    const name = document.createElement('strong'); name.textContent = person.name || person.email;
+    const email = document.createElement('small'); email.textContent = person.email;
+    identity.append(name, email);
+    const role = document.createElement('span'); role.textContent = owner ? 'Administrador' : person.pending ? 'Sin asignar' : reviewRoleLabels[reviewRoleFor(person.permissions || { reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true })];
+    const apps = document.createElement('span');
+    const permissions = person.permissions || (person.pending ? {} : { storyboards: true, reviewsView: true });
+    apps.textContent = owner ? 'Storyboards · Reviews' : [permissions.storyboards && 'Storyboards', (permissions.reviewsView || permissions.reviewsClient) && 'Reviews'].filter(Boolean).join(' · ') || 'Sin aplicaciones';
+    const status = document.createElement('span'); status.className = `reviews-staff-state${person.pending ? ' is-pending' : person.active === false ? ' is-disabled' : ''}`; status.textContent = owner ? 'Activo' : personState(person);
+    const arrow = document.createElement('span'); arrow.textContent = owner ? '' : '›'; arrow.setAttribute('aria-hidden', 'true');
+    row.append(identity, role, apps, status, arrow);
+    return row;
   }
   function filterStaffList() {
     const term = $('#reviewsStaffSearch').value.trim().toLowerCase();
-    $('#reviewsStaffList').querySelectorAll('.reviews-staff-row').forEach(row => { row.hidden = Boolean(term && !row.dataset.search.includes(term)); });
+    let visible = 0;
+    $('#reviewsStaffList').querySelectorAll('.reviews-staff-row').forEach(row => {
+      row.hidden = Boolean(term && !row.dataset.search.includes(term));
+      if (!row.hidden) visible += 1;
+    });
+    $('#reviewsStaffCount').textContent = `${visible} de ${staffPeople.length + 1} personas`;
   }
-  permissionControls($('#reviewsStaffNewPermissions'));
+  async function refreshStaffList() {
+    const api = await cloud();
+    const [staff, requests, shares] = await Promise.all([api.staffList(), api.accessRequests(), api.listReviewShares()]);
+    shareChoices = shares;
+    const people = new Map(staff.map(person => [person.email.toLowerCase(), { ...person, pending: false }]));
+    for (const request of requests) {
+      const email = request.email?.toLowerCase(); if (!email || email === 'info@granbertafilms.com') continue;
+      const existing = people.get(email);
+      if (existing) { if (!existing.name && request.name) existing.name = request.name; }
+      else people.set(email, { ...request, email, pending: true });
+    }
+    staffPeople = [...people.values()].sort((a, b) => Number(b.pending) - Number(a.pending) || (a.name || a.email).localeCompare(b.name || b.email));
+    const list = $('#reviewsStaffList'); list.replaceChildren();
+    list.append(createStaffRow({ name: 'GB Films', email: 'info@granbertafilms.com', active: true }, true));
+    for (const person of staffPeople) list.append(createStaffRow(person));
+    filterStaffList();
+  }
   $('#reviewsStaffSearch').addEventListener('input', filterStaffList);
+  $('#reviewsPersonReviewsRole').addEventListener('change', updatePersonRoleFields);
+  $('#reviewsAddPerson').addEventListener('click', () => openPerson());
   $('#reviewsAdminBtn').addEventListener('click', async () => {
     if (window.STUDIO_ROLE !== 'admin') return;
     $('#reviewsAdminModal').hidden = false; $('#reviewsStaffStatus').textContent = '';
@@ -839,12 +906,36 @@
   });
   $('#reviewsAdminClose').addEventListener('click', () => { $('#reviewsAdminModal').hidden = true; });
   $('#reviewsAdminModal').addEventListener('click', event => { if (event.target === $('#reviewsAdminModal')) $('#reviewsAdminModal').hidden = true; });
-  $('#reviewsStaffForm').addEventListener('submit', async event => {
+  $('#reviewsPersonClose').addEventListener('click', closePerson);
+  $('#reviewsPersonCancel').addEventListener('click', closePerson);
+  $('#reviewsPersonModal').addEventListener('click', event => { if (event.target === $('#reviewsPersonModal')) closePerson(); });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (!$('#reviewsPersonModal').hidden) closePerson();
+    else if (!$('#reviewsAdminModal').hidden) $('#reviewsAdminModal').hidden = true;
+  });
+  $('#reviewsPersonForm').addEventListener('submit', async event => {
     event.preventDefault(); if (window.STUDIO_ROLE !== 'admin') return;
-    const input = $('#reviewsStaffEmail'), submit = $('#reviewsStaffForm button[type=submit]'); submit.disabled = true;
-    try { await (await cloud()).saveStaff(input.value, selectedPermissions($('#reviewsStaffNewPermissions'))); input.value = ''; $('#reviewsStaffNewPermissions').querySelectorAll('input').forEach(item => { item.checked = false; }); $('#reviewsStaffStatus').textContent = 'Cuenta autorizada. Ya puede iniciar sesión con Google.'; await refreshStaffList(); }
-    catch (error) { console.error(error); $('#reviewsStaffStatus').textContent = error.message || 'No se pudo dar acceso.'; }
-    finally { submit.disabled = false; }
+    const save = $('#reviewsPersonSave'); save.disabled = true;
+    try {
+      const email = $('#reviewsPersonEmail').value.trim().toLowerCase();
+      if (!selectedPerson && staffPeople.some(person => person.email === email)) throw new Error('Esta persona ya figura en la lista. Abrí su perfil para editarla.');
+      const permissions = personPermissions();
+      const role = $('#reviewsPersonReviewsRole').value;
+      const reviewTokens = role === 'client' ? [...$('#reviewsPersonShareList').querySelectorAll('input:checked')].map(input => input.value) : [];
+      await (await cloud()).saveStaff(email, permissions, $('#reviewsPersonName').value,
+        { active: $('#reviewsPersonActive').checked, roles: { reviews: role }, reviewTokens });
+      $('#reviewsStaffStatus').textContent = `Acceso de ${$('#reviewsPersonEmail').value.trim()} guardado.`;
+      closePerson(); await refreshStaffList();
+    } catch (error) { console.error(error); $('#reviewsPersonStatus').textContent = error.message || 'No se pudo guardar el acceso.'; }
+    finally { save.disabled = false; }
+  });
+  $('#reviewsPersonRemove').addEventListener('click', async () => {
+    if (!selectedPerson || window.STUDIO_ROLE !== 'admin') return;
+    const email = selectedPerson.email;
+    if (!await askConfirmation('¿Eliminar usuario?', `${email} dejará de tener acceso a GB Studio.`)) return;
+    try { await (await cloud()).removeStaff(email); closePerson(); await refreshStaffList(); $('#reviewsStaffStatus').textContent = 'Acceso eliminado.'; }
+    catch (error) { console.error(error); $('#reviewsPersonStatus').textContent = 'No se pudo eliminar el acceso.'; }
   });
 
   $('#reviewsNav').addEventListener('click', () => isGuestReview() ? showReviews() : showReviewsHome());
@@ -932,25 +1023,27 @@
   });
   window.addEventListener('studio-auth-change', () => {
     $('#reviewsAdminBtn').hidden = window.STUDIO_ROLE !== 'admin';
-    $('#reviewsNav').hidden = !canReview('reviewsView');
-    if (!window.STUDIO_SIGNED_IN) $('#reviewsAdminModal').hidden = true;
+    $('#reviewsNav').hidden = !canEnterReviews();
+    if (!window.STUDIO_SIGNED_IN) { $('#reviewsAdminModal').hidden = true; $('#reviewsPersonModal').hidden = true; }
+    const accessKey = `${window.STUDIO_USER?.uid || ''}:${JSON.stringify(window.STUDIO_PERMISSIONS || {})}:${JSON.stringify(window.STUDIO_REVIEW_TOKENS || [])}`;
     if (sharedReview && window.STUDIO_SIGNED_IN) {
       const existing = state.records.find(record => !record.ephemeral && record.source === 'dropbox' && record.sourceUrl === sharedReview.sourceUrl);
       if (existing && state.active?.id !== existing.id) selectRecord(existing.id);
     }
-    if (window.STUDIO_SIGNED_IN && window.STUDIO_ROLE !== 'admin' && !isGuestReview() && window.STUDIO_USER?.uid !== hydratedUserUid) {
+    if (window.STUDIO_SIGNED_IN && window.STUDIO_ROLE !== 'admin' && !isGuestReview() && accessKey !== hydratedUserUid) {
       state.projects = []; state.records = []; state.projectId = null; state.versionId = null; state.active = null;
     }
     applyReviewPermissions();
-    if (!$('#reviewsHome').hidden && canReview('reviewsView')) renderHome();
-    if (window.STUDIO_SIGNED_IN && canReview('reviewsView') && !isGuestReview() && window.STUDIO_USER?.uid !== hydratedUserUid) {
-      hydratedUserUid = window.STUDIO_USER.uid;
+    if (!$('#reviewsHome').hidden && canEnterReviews()) renderHome();
+    if (window.STUDIO_SIGNED_IN && canEnterReviews() && !isGuestReview() && accessKey !== hydratedUserUid) {
+      hydratedUserUid = accessKey;
       Promise.resolve(initialized).then(async () => {
-        if (window.STUDIO_USER?.uid !== hydratedUserUid || !canReview('reviewsView')) return;
+        if (accessKey !== hydratedUserUid || !canEnterReviews()) return;
         if (window.STUDIO_ROLE !== 'admin') { state.projects = []; state.records = []; state.projectId = null; state.versionId = null; state.active = null; }
         const api = await cloud();
-        const [remoteProjects, remoteFiles] = await Promise.all([api.listStaffProjects(), api.listStaffFiles()]);
-        if (window.STUDIO_USER?.uid !== hydratedUserUid || !canReview('reviewsView')) return;
+        const clientOnly = canReview('reviewsClient') && !canReview('reviewsView');
+        const [remoteProjects, remoteFiles] = clientOnly ? [[], []] : await Promise.all([api.listStaffProjects(), api.listStaffFiles()]);
+        if (accessKey !== hydratedUserUid || !canEnterReviews()) return;
         const remoteProjectIds = new Set(remoteProjects.map(project => project.id));
         const remoteFileIds = new Set(remoteFiles.map(record => record.id));
         // Only the administrator imports pre-cloud browser data; other accounts see the shared library.
@@ -961,8 +1054,8 @@
         for (const record of importedFiles) await api.saveStaffFile(record);
         state.projects = [...remoteProjects, ...importedProjects];
         state.records = [...remoteFiles, ...importedFiles];
-        const shares = await api.listSharedReviews();
-        if (window.STUDIO_USER?.uid !== hydratedUserUid || !canReview('reviewsView')) return;
+        const shares = await api.listSharedReviews(clientOnly ? window.STUDIO_REVIEW_TOKENS || [] : null);
+        if (accessKey !== hydratedUserUid || !canEnterReviews()) return;
         for (const share of shares) {
           let project = state.projects.find(entry => entry.id === share.projectId);
           const version = { id: share.versionId, title: share.versionTitle, category: share.category,
@@ -982,7 +1075,7 @@
         if (state.active) state.active = state.records.find(record => record.id === state.active.id) || state.active;
         if (!$('#reviewsHome').hidden) renderHome();
       }).catch(error => { hydratedUserUid = null; console.error('Could not load shared reviews', error); });
-    } else if (!window.STUDIO_SIGNED_IN || !canReview('reviewsView')) hydratedUserUid = null;
+    } else if (!window.STUDIO_SIGNED_IN || !canEnterReviews()) hydratedUserUid = null;
   });
   $('#reviewsShareBtn').addEventListener('click', () => shareVersion());
   $('#reviewsInBtn').addEventListener('click', () => setRangePoint('in'));

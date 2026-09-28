@@ -165,6 +165,7 @@ let pendingDeletePageIndex = null;
 let lastUndoState = null;
 let pendingNewProject = false;
 let projectSort = localStorage.getItem(PROJECT_SORT_KEY) || 'updated';
+let indexedDbHydrationStarted = false;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -439,6 +440,8 @@ function writeIndexedDbSnapshot() {
 }
 
 function hydrateProjectsFromIndexedDb() {
+  if (!window.STUDIO_PERMISSIONS?.storyboards || indexedDbHydrationStarted) return;
+  indexedDbHydrationStarted = true;
   openIndexedDb(db => {
     try {
       const request = db.transaction('workspace', 'readonly').objectStore('workspace').get('projects');
@@ -446,7 +449,7 @@ function hydrateProjectsFromIndexedDb() {
         const saved = request.result;
         const localUpdatedAt = projects.reduce((latest, entry) => Math.max(latest, new Date(entry.updatedAt || 0).getTime()), 0);
         const databaseUpdatedAt = new Date(saved?.updatedAt || 0).getTime();
-        if (Array.isArray(saved?.projects) && saved.projects.length && databaseUpdatedAt >= localUpdatedAt) {
+        if (window.STUDIO_PERMISSIONS?.storyboards && Array.isArray(saved?.projects) && saved.projects.length && databaseUpdatedAt >= localUpdatedAt) {
           projects = saved.projects.map(normalizeProject);
           renderDashboard();
         }
@@ -693,6 +696,7 @@ function confirmDeleteVersion() {
 }
 
 function showDashboard() {
+  if (!window.STUDIO_PERMISSIONS?.storyboards) return false;
   if (project) saveProject();
   project = null;
   lastUndoState = null;
@@ -715,9 +719,11 @@ function showDashboard() {
   $('#exportBtn').hidden = true;
   $('#breadcrumbTitle').textContent = 'Todos los proyectos';
   renderDashboard();
+  return true;
 }
 
 function showEditor() {
+  if (!window.STUDIO_PERMISSIONS?.storyboards) return false;
   $('#dashboardView').hidden = true;
   $('#editorView').hidden = false;
   $('#reviewsView').hidden = true;
@@ -733,6 +739,7 @@ function showEditor() {
   $('#exportBtn').hidden = false;
   $('#breadcrumbTitle').textContent = project?.title || 'Sin título';
   queueMicrotask(optimizeCurrentBackgroundImage);
+  return true;
 }
 
 function openDeleteProjectModal(id) {
@@ -2289,7 +2296,15 @@ window.addEventListener('studio-auth-change', () => {
   $('#storyboardsNav').hidden = !allowed;
   $('#dashboardCreateBtn').hidden = !allowed;
   $('#dashboardEmptyCreateBtn').hidden = !allowed;
+  if (allowed) { hydrateProjectsFromIndexedDb(); return; }
+  // Permission changes can arrive while a storyboard editor is already open.
+  // Save is denied by saveProject(), then move the visible workspace to an
+  // authorized section or leave it behind the auth gate.
+  if (!document.body.classList.contains('auth-locked')) {
+    if (window.STUDIO_PERMISSIONS?.reviewsView || window.STUDIO_PERMISSIONS?.reviewsClient) window.STUDIO_SHOW_REVIEWS?.();
+    else document.body.classList.add('auth-locked');
+  }
 });
 
+window.showDashboard = showDashboard;
 showDashboard();
-hydrateProjectsFromIndexedDb();

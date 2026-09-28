@@ -7,7 +7,7 @@ const app = getApps().length ? getApp() : initializeApp(window.STORYBOARD_FIREBA
 const db = getFirestore(app);
 const auth = getAuth(app);
 const ADMIN_EMAIL = 'info@granbertafilms.com';
-export const PERMISSION_KEYS = ['storyboards', 'reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'];
+export const PERMISSION_KEYS = ['storyboards', 'reviewsClient', 'reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'];
 export const ALL_PERMISSIONS = Object.fromEntries(PERMISSION_KEYS.map(key => [key, true]));
 function normalizedPermissions(data) {
   if (!data || data.active === false) return null;
@@ -30,13 +30,13 @@ export async function staffRole(user) {
   if (user.email?.toLowerCase() === ADMIN_EMAIL) return { role: 'admin', permissions: { ...ALL_PERMISSIONS } };
   const member = await getDoc(doc(db, 'reviewStaff', user.email.toLowerCase()));
   const permissions = normalizedPermissions(member.exists() ? member.data() : null);
-  return permissions ? { role: 'staff', permissions } : null;
+  return permissions ? { role: 'staff', permissions, roles: member.data().roles || {}, reviewTokens: Array.isArray(member.data().reviewTokens) ? member.data().reviewTokens : [] } : null;
 }
 export function watchStaffRole(user, callback, onError) {
   return onSnapshot(doc(db, 'reviewStaff', user.email.toLowerCase()),
     snapshot => {
       const permissions = normalizedPermissions(snapshot.exists() ? snapshot.data() : null);
-      callback(permissions ? { role: 'staff', permissions } : null);
+      callback(permissions ? { role: 'staff', permissions, roles: snapshot.data().roles || {}, reviewTokens: Array.isArray(snapshot.data().reviewTokens) ? snapshot.data().reviewTokens : [] } : null);
     }, onError);
 }
 
@@ -54,18 +54,27 @@ export async function staffList() {
   const snapshot = await getDocs(collection(db, 'reviewStaff'));
   return snapshot.docs.map(item => ({ email: item.id, ...item.data() })).sort((a, b) => a.email.localeCompare(b.email));
 }
-export async function saveStaff(email, permissions, name = '') {
+export async function saveStaff(email, permissions, name = '', options = {}) {
   const normalized = email.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error('Escribí un correo válido.');
   if (normalized === ADMIN_EMAIL) throw new Error('Esta cuenta ya es administradora.');
   const safe = Object.fromEntries(PERMISSION_KEYS.map(key => [key, permissions?.[key] === true]));
-  if (!Object.values(safe).some(Boolean)) throw new Error('Seleccioná al menos un permiso.');
+  const active = options.active !== false;
+  if (active && !Object.values(safe).some(Boolean)) throw new Error('Seleccioná al menos una aplicación o desactivá el acceso.');
+  if (safe.reviewsClient && (safe.reviewsView || safe.reviewsCreate || safe.reviewsEdit || safe.reviewsShare)) throw new Error('El rol Cliente no puede combinarse con acceso a toda la biblioteca.');
   if ((safe.reviewsCreate || safe.reviewsEdit || safe.reviewsShare) && !safe.reviewsView) throw new Error('Para trabajar en Reviews, habilitá también Ver Reviews.');
   if ((safe.reviewsCreate || safe.reviewsShare) && !safe.reviewsEdit) throw new Error('Para crear o compartir reviews, habilitá también Editar Reviews.');
-  await setDoc(doc(db, 'reviewStaff', normalized), { name: name.trim().slice(0, 100), active: true,
-    permissions: safe, updatedAt: new Date().toISOString(), updatedBy: auth.currentUser?.email || '' });
+  const reviewTokens = [...new Set((Array.isArray(options.reviewTokens) ? options.reviewTokens : []).filter(value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value)))];
+  const roles = { storyboards: safe.storyboards ? 'editor' : 'none', reviews: safe.reviewsClient ? 'client' : options.roles?.reviews || 'custom' };
+  await setDoc(doc(db, 'reviewStaff', normalized), { name: name.trim().slice(0, 100), active, roles,
+    permissions: safe, reviewTokens: safe.reviewsClient ? reviewTokens : [], updatedAt: new Date().toISOString(), updatedBy: auth.currentUser?.email || '' });
 }
-export async function removeStaff(email) { await deleteDoc(doc(db, 'reviewStaff', email)); }
+export async function removeStaff(email) {
+  const normalized = email.trim().toLowerCase();
+  await deleteDoc(doc(db, 'reviewStaff', normalized));
+  const requests = await getDocs(collection(db, 'accessRequests'));
+  for (const request of requests.docs) if (request.data().email === normalized) await deleteDoc(request.ref);
+}
 
 export async function saveStaffProject(project) {
   const { versions, ...rest } = project;
@@ -167,7 +176,17 @@ export async function getSharedReview(token) {
   const files = await getDocs(collection(db, 'reviewShares', token, 'files'));
   return { ...snapshot.data(), token, files: files.docs.map(item => ({ id: item.id, ...item.data(), comments: [] })) };
 }
-export async function listSharedReviews() {
+export async function listReviewShares() {
+  const shares = await getDocs(collection(db, 'reviewShares'));
+  return shares.docs.filter(item => item.data().active).map(item => ({ token: item.id, ...item.data() }));
+}
+export async function listSharedReviews(assignedTokens = null) {
+  if (Array.isArray(assignedTokens)) {
+    const loaded = await Promise.all(assignedTokens.map(async assignedToken => {
+      try { return await getSharedReview(assignedToken); } catch { return null; }
+    }));
+    return loaded.filter(Boolean);
+  }
   const shares = await getDocs(collection(db, 'reviewShares'));
   const active = shares.docs.filter(item => item.data().active);
   return Promise.all(active.map(async item => {
