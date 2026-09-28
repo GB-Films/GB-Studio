@@ -1,6 +1,12 @@
 const accountButton = document.querySelector('#accountButton');
 const accountAvatar = document.querySelector('#accountAvatar');
 const accountLabel = document.querySelector('#accountLabel');
+const profileModal = document.querySelector('#profileModal');
+const profileAvatar = document.querySelector('#profileAvatar');
+const profileName = document.querySelector('#profileName');
+const profileEmail = document.querySelector('#profileEmail');
+const profileRole = document.querySelector('#profileRole');
+const profileModules = document.querySelector('#profileModules');
 const authGate = document.querySelector('#authGate');
 const authGateButton = document.querySelector('#authGateButton');
 const authGateTitle = document.querySelector('#authGateTitle');
@@ -27,7 +33,49 @@ function showAuthMessage(message) {
   else accountButton?.setAttribute('title', message);
 }
 
+function closeProfile() {
+  if (profileModal) profileModal.hidden = true;
+  accountButton?.setAttribute('aria-expanded', 'false');
+}
+
+function openProfile() {
+  if (!profileModal) return;
+  profileModal.hidden = false;
+  accountButton?.setAttribute('aria-expanded', 'true');
+  document.querySelector('#profileCloseIcon')?.focus();
+}
+
+function updateProfile(user, access = null, pending = false) {
+  if (!user) return;
+  const name = user.displayName || user.email || 'Cuenta';
+  if (profileName) profileName.textContent = name;
+  if (profileEmail) profileEmail.textContent = user.email || '';
+  if (profileRole) profileRole.textContent = pending ? 'Pendiente de autorización' : access?.role === 'admin' ? 'Administrador' : 'Equipo autorizado';
+  if (profileAvatar) {
+    profileAvatar.textContent = user.photoURL ? '' : name.trim().charAt(0).toUpperCase() || 'G';
+    profileAvatar.style.backgroundImage = user.photoURL ? `url("${user.photoURL.replaceAll('"', '')}")` : '';
+  }
+  if (profileModules) {
+    profileModules.replaceChildren();
+    const enabled = [];
+    if (access?.permissions?.storyboards) enabled.push('Storyboards');
+    if (access?.permissions?.reviewsView) enabled.push('Reviews');
+    if (enabled.length) {
+      const list = document.createElement('div'); list.className = 'profile-module-list';
+      for (const moduleName of enabled) {
+        const chip = document.createElement('span'); chip.className = 'profile-module-chip'; chip.textContent = moduleName; list.append(chip);
+      }
+      profileModules.append(list);
+    } else {
+      const empty = document.createElement('p'); empty.className = 'profile-modules-empty';
+      empty.textContent = pending ? 'Todavía no hay módulos habilitados.' : 'No hay módulos habilitados.';
+      profileModules.append(empty);
+    }
+  }
+}
+
 function renderSignedOut() {
+  closeProfile();
   window.STUDIO_SIGNED_IN = false;
   window.STUDIO_ROLE = null;
   window.STUDIO_USER = null;
@@ -37,19 +85,22 @@ function renderSignedOut() {
   accountAvatar.style.backgroundImage = '';
   accountLabel.textContent = 'Iniciar sesión';
   accountButton?.setAttribute('aria-label', 'Iniciar sesión con Google');
+  accountButton?.setAttribute('aria-expanded', 'false');
   accountButton?.classList.remove('is-authenticated');
   setAuthGate(!publicReview, 'Iniciá sesión para entrar.', 'Tu espacio de preproducción está protegido. Continuá con tu cuenta de Google para ver tus proyectos.');
   window.dispatchEvent(new Event('studio-auth-change'));
 }
 
 function renderSignedIn(user, access) {
+  closeProfile();
   window.STUDIO_SIGNED_IN = true;
   window.STUDIO_ROLE = access.role;
   window.STUDIO_PERMISSIONS = access.permissions;
   window.STUDIO_USER = user;
   const name = user.displayName || user.email || 'Cuenta';
   accountLabel.textContent = name;
-  accountButton?.setAttribute('aria-label', `Cerrar sesión de ${name}`);
+  accountButton?.setAttribute('aria-label', `Ver perfil de ${name}`);
+  accountButton?.setAttribute('aria-controls', 'profileModal');
   accountButton?.classList.add('is-authenticated');
   if (user.photoURL) {
     accountAvatar.textContent = '';
@@ -58,6 +109,7 @@ function renderSignedIn(user, access) {
     accountAvatar.textContent = name.trim().charAt(0).toUpperCase() || 'G';
     accountAvatar.style.backgroundImage = '';
   }
+  updateProfile(user, access);
   setAuthGate(false);
   window.dispatchEvent(new Event('studio-auth-change'));
   if (!publicReview && !access.permissions.storyboards) window.STUDIO_SHOW_REVIEWS?.();
@@ -65,6 +117,7 @@ function renderSignedIn(user, access) {
 }
 
 function renderNoAccess(user) {
+  closeProfile();
   window.STUDIO_SIGNED_IN = false;
   window.STUDIO_ROLE = null;
   window.STUDIO_PERMISSIONS = {};
@@ -72,7 +125,9 @@ function renderNoAccess(user) {
   authGateButton.textContent = 'Cerrar sesión';
   accountAvatar.textContent = (user.displayName || user.email || 'G').charAt(0).toUpperCase();
   accountLabel.textContent = user.email || 'Cuenta sin acceso';
-  accountButton?.setAttribute('aria-label', 'Cerrar sesión');
+  accountButton?.setAttribute('aria-label', `Ver perfil de ${user.displayName || user.email || 'la cuenta'}`);
+  accountButton?.setAttribute('aria-controls', 'profileModal');
+  updateProfile(user, null, true);
   setAuthGate(!publicReview, 'Tu cuenta está pendiente.', 'El administrador de GB Studio debe habilitar tu cuenta y elegir qué secciones podés usar.');
   window.dispatchEvent(new Event('studio-auth-change'));
 }
@@ -129,8 +184,16 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
       }
     };
     accountButton?.addEventListener('click', async () => {
-      if (auth.currentUser) await signOut(auth);
+      if (auth.currentUser && !auth.currentUser.isAnonymous) openProfile();
       else await signIn();
+    });
+    document.querySelector('#profileCloseIcon')?.addEventListener('click', closeProfile);
+    document.querySelector('#profileCloseButton')?.addEventListener('click', closeProfile);
+    profileModal?.addEventListener('click', event => { if (event.target === profileModal) closeProfile(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && profileModal && !profileModal.hidden) closeProfile(); });
+    document.querySelector('#profileSignOutButton')?.addEventListener('click', async () => {
+      if (auth.currentUser) await signOut(auth);
+      closeProfile();
     });
     authGateButton?.addEventListener('click', async () => {
       if (auth.currentUser) await signOut(auth);

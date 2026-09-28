@@ -8,7 +8,7 @@
     <title>GB Studio · Storyboards y Reviews</title>
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
-    <link rel="stylesheet" href="styles.css?v=50" />
+    <link rel="stylesheet" href="styles.css?v=51" />
     <link rel="stylesheet" href="reviews.css?v=7" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
   </head>
@@ -28,8 +28,20 @@
         <a class="brand" href="#" aria-label="GB Studio"><img class="brand-logo" src="assets/gb-films-logo-white.png" alt="GB Films" /><span class="brand-divider"></span><span class="brand-product">GB<br /><em>STUDIO</em></span></a>
         <nav class="studio-nav" aria-label="Secciones de GB Studio"><button class="studio-nav-link is-active" id="storyboardsNav" type="button">Storyboards</button><button class="studio-nav-link" id="reviewsNav" type="button">Reviews</button></nav>
         <div class="breadcrumbs"><span>PROYECTOS</span><b>/</b><strong id="breadcrumbTitle">Todos los proyectos</strong></div>
-        <div class="top-actions"><button class="button button-ghost" id="backToDashboardBtn" type="button" hidden>← Proyectos</button><button class="button button-ghost" id="manageVersionsBtn" type="button" hidden>Versiones</button><button class="button button-ghost" id="createVersionBtn" type="button" hidden>＋ Crear versión</button><button class="button button-primary" id="exportBtn" type="button" hidden><span>↗</span> Exportar</button><button class="button button-ghost" id="reviewsAdminBtn" type="button" hidden>Accesos</button><button class="account-button" id="accountButton" type="button" aria-label="Iniciar sesión con Google"><span class="account-avatar" id="accountAvatar">G</span><span class="account-label" id="accountLabel">Iniciar sesión</span></button></div>
+        <div class="top-actions"><button class="button button-ghost" id="backToDashboardBtn" type="button" hidden>← Proyectos</button><button class="button button-ghost" id="manageVersionsBtn" type="button" hidden>Versiones</button><button class="button button-ghost" id="createVersionBtn" type="button" hidden>＋ Crear versión</button><button class="button button-primary" id="exportBtn" type="button" hidden><span>↗</span> Exportar</button><button class="button button-ghost" id="reviewsAdminBtn" type="button" hidden>Accesos</button><button class="account-button" id="accountButton" type="button" aria-label="Iniciar sesión con Google" aria-controls="profileModal" aria-expanded="false"><span class="account-avatar" id="accountAvatar">G</span><span class="account-label" id="accountLabel">Iniciar sesión</span></button></div>
       </header>
+
+      <div class="profile-backdrop" id="profileModal" hidden>
+        <section class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+          <header class="profile-modal-header"><div><span class="profile-eyebrow">CUENTA GB STUDIO</span><h2 id="profileTitle">Mi perfil</h2></div><button class="profile-close-icon" id="profileCloseIcon" type="button" aria-label="Cerrar perfil">×</button></header>
+          <div class="profile-modal-body">
+            <div class="profile-identity"><span class="profile-avatar" id="profileAvatar">G</span><div><strong id="profileName">Cuenta</strong><span id="profileEmail"></span></div></div>
+            <div class="profile-detail-row"><span>ROL DE ACCESO</span><strong id="profileRole">Equipo</strong></div>
+            <section class="profile-modules"><h3>MÓDULOS HABILITADOS</h3><div id="profileModules"></div></section>
+          </div>
+          <footer class="profile-modal-actions"><button class="profile-close-button" id="profileCloseButton" type="button">Volver</button><button class="profile-signout-button" id="profileSignOutButton" type="button"><span aria-hidden="true">⇥</span> Cerrar sesión</button></footer>
+        </section>
+      </div>
 
       <main class="dashboard-view" id="dashboardView">
         <section class="dashboard-hero">
@@ -174,6 +186,6 @@
         appId: '1:475470109485:web:c4400a214f973223aa91a4',
       };
     </script>
-    <script type="module" src="auth.js?v=7"></script>
+    <script type="module" src="auth.js?v=8"></script>
   </body>
 </html>
