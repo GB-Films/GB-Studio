@@ -31,6 +31,8 @@ function renderSignedOut() {
   window.STUDIO_SIGNED_IN = false;
   window.STUDIO_ROLE = null;
   window.STUDIO_USER = null;
+  window.STUDIO_PERMISSIONS = {};
+  authGateButton.textContent = 'Continuar con Google →';
   accountAvatar.textContent = 'G';
   accountAvatar.style.backgroundImage = '';
   accountLabel.textContent = 'Iniciar sesión';
@@ -40,9 +42,10 @@ function renderSignedOut() {
   window.dispatchEvent(new Event('studio-auth-change'));
 }
 
-function renderSignedIn(user, role) {
+function renderSignedIn(user, access) {
   window.STUDIO_SIGNED_IN = true;
-  window.STUDIO_ROLE = role;
+  window.STUDIO_ROLE = access.role;
+  window.STUDIO_PERMISSIONS = access.permissions;
   window.STUDIO_USER = user;
   const name = user.displayName || user.email || 'Cuenta';
   accountLabel.textContent = name;
@@ -57,16 +60,20 @@ function renderSignedIn(user, role) {
   }
   setAuthGate(false);
   window.dispatchEvent(new Event('studio-auth-change'));
+  if (!publicReview && !access.permissions.storyboards) window.STUDIO_SHOW_REVIEWS?.();
+  else if (!publicReview && !access.permissions.reviewsView && (!document.querySelector('#reviewsHome')?.hidden || !document.querySelector('#reviewsView')?.hidden)) window.showDashboard?.();
 }
 
 function renderNoAccess(user) {
   window.STUDIO_SIGNED_IN = false;
   window.STUDIO_ROLE = null;
+  window.STUDIO_PERMISSIONS = {};
   window.STUDIO_USER = user;
+  authGateButton.textContent = 'Cerrar sesión';
   accountAvatar.textContent = (user.displayName || user.email || 'G').charAt(0).toUpperCase();
   accountLabel.textContent = user.email || 'Cuenta sin acceso';
   accountButton?.setAttribute('aria-label', 'Cerrar sesión');
-  setAuthGate(!publicReview, 'Esta cuenta no tiene acceso.', 'Pedile al administrador de GB Studio que habilite tu correo de Google para entrar al estudio.');
+  setAuthGate(!publicReview, 'Tu cuenta está pendiente.', 'El administrador de GB Studio debe habilitar tu cuenta y elegir qué secciones podés usar.');
   window.dispatchEvent(new Event('studio-auth-change'));
 }
 
@@ -81,7 +88,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
     const [{ initializeApp }, { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut }, cloud] = await Promise.all([
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js'),
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js'),
-      import('./reviews-cloud.js?v=2'),
+      import('./reviews-cloud.js?v=3'),
     ]);
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -93,11 +100,15 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
       if (!user || user.isAnonymous) { renderSignedOut(); return; }
       const google = user.emailVerified && user.providerData.some(item => item.providerId === 'google.com');
       if (!google) { renderNoAccess(user); return; }
-      if (user.email?.toLowerCase() === 'info@granbertafilms.com') { renderSignedIn(user, 'admin'); return; }
+      if (user.email?.toLowerCase() === 'info@granbertafilms.com') { renderSignedIn(user, { role: 'admin', permissions: { ...cloud.ALL_PERMISSIONS } }); return; }
       if (!publicReview) setAuthGate(true, 'Verificando acceso…', 'Estamos comprobando si tu cuenta está autorizada para entrar al estudio.');
-      stopRoleWatch = cloud.watchStaffRole(user, role => {
+      if (!publicReview) cloud.registerAccessRequest(user).catch(error => {
+        console.error('Could not register access request', error);
+        if (auth.currentUser?.uid === user.uid && !window.STUDIO_SIGNED_IN) showAuthMessage('No se pudo registrar tu solicitud. Pedile al administrador que agregue tu correo manualmente.');
+      });
+      stopRoleWatch = cloud.watchStaffRole(user, access => {
         if (auth.currentUser?.uid !== user.uid) return;
-        role ? renderSignedIn(user, role) : renderNoAccess(user);
+        access ? renderSignedIn(user, access) : renderNoAccess(user);
       }, error => {
         if (auth.currentUser?.uid !== user.uid) return;
         console.error('Could not verify studio access', error);
@@ -121,7 +132,10 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
       if (auth.currentUser) await signOut(auth);
       else await signIn();
     });
-    authGateButton?.addEventListener('click', signIn);
+    authGateButton?.addEventListener('click', async () => {
+      if (auth.currentUser) await signOut(auth);
+      else await signIn();
+    });
   } catch (error) {
     console.error('Firebase auth could not be initialized', error);
     renderSignedOut();

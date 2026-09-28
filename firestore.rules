@@ -9,8 +9,14 @@ service cloud.firestore {
     function admin() {
       return googleUser() && request.auth.token.email.lower() == 'info@granbertafilms.com';
     }
-    function staff() {
-      return googleUser() && (admin() || exists(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())));
+    function permission(name) {
+      return admin() || (googleUser()
+        && exists(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower()))
+        && (!('active' in get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data)
+          || get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data.active == true)
+        // Older team entries predate granular permissions and retain their access.
+        && (!('permissions' in get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data)
+          || get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data.permissions[name] == true));
     }
     function activeShare(token) {
       return exists(/databases/$(database)/documents/reviewShares/$(token))
@@ -25,32 +31,52 @@ service cloud.firestore {
       allow list, create, update, delete: if admin();
     }
 
+    match /accessRequests/{uid} {
+      allow get: if admin() || (googleUser() && request.auth.uid == uid);
+      allow list, delete: if admin();
+      allow create: if googleUser() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'name', 'createdAt'])
+        && request.resource.data.keys().hasAll(['uid', 'email', 'name', 'createdAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.email == request.auth.token.email.lower()
+        && request.resource.data.name is string && request.resource.data.name.size() <= 100
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+    }
+
     // Private working library for the Google-authorized team. Guests never read these.
     match /reviewProjects/{projectId} {
-      allow read, write: if staff();
+      allow read: if permission('reviewsView');
+      allow create: if permission('reviewsCreate');
+      allow update, delete: if permission('reviewsEdit');
     }
     match /reviewItems/{fileId} {
-      allow read, write: if staff();
+      allow read: if permission('reviewsView');
+      allow create, update, delete: if permission('reviewsEdit');
     }
 
     match /reviewShares/{token} {
       // A 256-bit unguessable URL token is the guest's capability. No collection listing.
-      allow get: if staff() || resource.data.active == true;
-      allow list: if staff();
-      allow create, update, delete: if staff();
+      allow get: if permission('reviewsView') || resource.data.active == true;
+      allow list: if permission('reviewsView');
+      allow create, delete: if permission('reviewsShare');
+      allow update: if permission('reviewsShare') || (permission('reviewsEdit')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'projectTitle', 'versionTitle', 'category', 'sections', 'client', 'agency', 'director', 'updatedAt'
+        ]));
 
       match /files/{fileId} {
-        allow get, list: if staff() || activeShare(token);
-        allow create, update: if staff()
+        allow get, list: if permission('reviewsView') || activeShare(token);
+        allow create, update: if permission('reviewsEdit')
           && request.resource.data.source == 'dropbox'
           && request.resource.data.sourceUrl is string
           && request.resource.data.sourceUrl.matches('^https://(www[.])?dropbox[.]com/(s|scl)/.*')
           && request.resource.data.kind in ['video', 'image', 'model'];
-        allow delete: if staff();
+        allow delete: if permission('reviewsEdit');
 
         match /comments/{commentId} {
-          allow get, list: if staff() || (activeShare(token) && parentFile(token, fileId));
-          allow create: if request.auth != null && (staff() || activeShare(token)) && parentFile(token, fileId)
+          allow get, list: if permission('reviewsView') || (activeShare(token) && parentFile(token, fileId));
+          allow create: if request.auth != null && (permission('reviewsEdit') || activeShare(token)) && parentFile(token, fileId)
             && request.resource.data.keys().hasOnly(['id', 'text', 'time', 'strokesJson', 'resolved', 'createdAt', 'authorUid', 'authorName'])
             && request.resource.data.id == commentId
             && request.resource.data.authorUid == request.auth.uid
@@ -59,13 +85,13 @@ service cloud.firestore {
             && request.resource.data.time is number && request.resource.data.time >= 0
             && request.resource.data.strokesJson is string && request.resource.data.strokesJson.size() <= 200000
             && request.resource.data.resolved is bool
-            && (staff() || request.resource.data.resolved == false);
-          allow update: if staff() || (request.auth != null && activeShare(token)
+            && (permission('reviewsEdit') || request.resource.data.resolved == false);
+          allow update: if permission('reviewsEdit') || (request.auth != null && activeShare(token)
             && resource.data.authorUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'strokesJson', 'resolved'])
             && request.resource.data.text is string && request.resource.data.text.size() <= 5000
             && request.resource.data.strokesJson is string && request.resource.data.strokesJson.size() <= 200000);
-          allow delete: if staff() || (request.auth != null && activeShare(token) && resource.data.authorUid == request.auth.uid);
+          allow delete: if permission('reviewsEdit') || (request.auth != null && activeShare(token) && resource.data.authorUid == request.auth.uid);
         }
       }
     }

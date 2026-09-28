@@ -35,7 +35,7 @@ const fixture = () => {
     // workspace. The smoke test supplies its own fixture, so unlock that
     // workspace after Firebase's signed-out state has settled.
     await page.waitForTimeout(250);
-    await page.evaluate(() => { document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true; });
+    await page.evaluate(() => { document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true; window.STUDIO_PERMISSIONS = { storyboards: true }; window.dispatchEvent(new Event('studio-auth-change')); });
     const original = fixture();
     await page.evaluate(data => { project = normalizeProject(data); currentProjectId = project.id; currentPageIndex = 0; selectedItemId = null; activeInspector = 'page'; showEditor(); render(); saveProject(); }, original);
     await page.waitForFunction(() => document.querySelectorAll('#canvasPage .design-item').length === 6);
@@ -346,7 +346,7 @@ const fixture = () => {
     await page.waitForTimeout(400);
     await page.reload();
     await page.waitForTimeout(250);
-    await page.evaluate(() => { document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true; });
+    await page.evaluate(() => { document.body.classList.remove('auth-locked'); document.querySelector('#authGate').hidden = true; window.STUDIO_PERMISSIONS = { storyboards: true }; window.dispatchEvent(new Event('studio-auth-change')); });
     assert.equal(await page.locator('.project-card-arrow').count(), 0);
     assert.equal(await page.locator('.project-version-chip').count(), 0);
     assert.equal(await page.locator('[data-edit-project]').count(), 1);
