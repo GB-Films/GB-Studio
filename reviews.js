@@ -300,12 +300,12 @@
     state.view.scale = next; applyView();
   }
   function resizeCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    if (!width || !height) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
     redraw();
   }
   function fitSurface() {
@@ -326,16 +326,16 @@
     return state.active?.comments.find(comment => comment.id === state.activeCommentId)?.strokes || [];
   }
   function redraw() {
-    const rect = canvas.getBoundingClientRect();
-    ctx.clearRect(0, 0, rect.width, rect.height);
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    ctx.clearRect(0, 0, width, height);
     for (const stroke of visibleStrokes()) {
       if (!stroke.points?.length) continue;
       ctx.beginPath();
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.strokeStyle = stroke.color || '#ff3b30';
-      ctx.lineWidth = Math.max(2, rect.width * .004);
-      stroke.points.forEach(([x, y], index) => index ? ctx.lineTo(x * rect.width, y * rect.height) : ctx.moveTo(x * rect.width, y * rect.height));
-      if (stroke.points.length === 1) { const [x, y] = stroke.points[0]; ctx.lineTo(x * rect.width + .1, y * rect.height + .1); }
+      ctx.lineWidth = Math.max(2, width * .004);
+      stroke.points.forEach(([x, y], index) => index ? ctx.lineTo(x * width, y * height) : ctx.moveTo(x * width, y * height));
+      if (stroke.points.length === 1) { const [x, y] = stroke.points[0]; ctx.lineTo(x * width + .1, y * height + .1); }
       ctx.stroke();
     }
   }

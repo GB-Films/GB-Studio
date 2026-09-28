@@ -60,6 +60,37 @@ const server = http.createServer((request, response) => {
     const stageBox = await page.locator('#reviewsStage').boundingBox();
     assert.ok(mediaBox.width <= stageBox.width && mediaBox.height <= stageBox.height, 'portrait media fits inside the review stage');
     await page.locator('#reviewsDrawBtn').click();
+    const inkAt = async targets => page.evaluate(points => {
+      const canvas = document.querySelector('#reviewsCanvas');
+      const { width, height } = canvas;
+      const pixels = canvas.getContext('2d').getImageData(0, 0, width, height).data;
+      const hits = points.map(() => 0);
+      let outside = 0;
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        if (pixels[(y * width + x) * 4 + 3] < 30) continue;
+        const hit = points.findIndex(([px, py]) => Math.hypot((x / width - px) * canvas.clientWidth, (y / height - py) * canvas.clientHeight) < 12);
+        if (hit < 0) outside++; else hits[hit]++;
+      }
+      return { hits, outside, backingWidth: width, logicalWidth: canvas.clientWidth };
+    }, targets);
+    const drawDot = async (x, y) => {
+      const bounds = await page.locator('#reviewsCanvas').boundingBox();
+      await page.mouse.click(bounds.x + bounds.width * x, bounds.y + bounds.height * y);
+    };
+    await drawDot(.35, .38);
+    let ink = await inkAt([[.35, .38]]);
+    assert.ok(ink.hits[0] > 0 && ink.outside === 0, 'a stroke starts directly under the cursor');
+    await page.mouse.wheel(0, -300);
+    await page.waitForFunction(() => document.querySelector('#reviewsZoomValue').textContent !== '100%');
+    ink = await inkAt([[.35, .38]]);
+    assert.ok(ink.hits[0] > 0 && ink.outside === 0, 'existing strokes remain fixed to the media after zoom');
+    assert.ok(ink.backingWidth <= ink.logicalWidth * 2 + 1, 'zoom does not enlarge the canvas backing store');
+    await drawDot(.62, .55);
+    ink = await inkAt([[.35, .38], [.62, .55]]);
+    assert.ok(ink.hits.every(count => count > 0) && ink.outside === 0, 'new strokes stay aligned with the cursor after zoom');
+    await page.locator('#reviewsUndoBtn').click();
+    await page.locator('#reviewsUndoBtn').click();
+    await page.keyboard.press('H');
     const box = await page.locator('#reviewsCanvas').boundingBox();
     await page.mouse.move(box.x + box.width * .2, box.y + box.height * .2);
     await page.mouse.down();
