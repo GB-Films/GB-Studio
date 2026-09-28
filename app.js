@@ -2296,7 +2296,11 @@ window.addEventListener('studio-auth-change', () => {
   $('#storyboardsNav').hidden = !allowed;
   $('#dashboardCreateBtn').hidden = !allowed;
   $('#dashboardEmptyCreateBtn').hidden = !allowed;
-  if (allowed) { hydrateProjectsFromIndexedDb(); return; }
+  if (allowed) {
+    if (document.documentElement.dataset.studioApp === 'storyboards' && !$('#dashboardView').hidden) renderDashboard();
+    hydrateProjectsFromIndexedDb();
+    return;
+  }
   // Permission changes can arrive while a storyboard editor is already open.
   // Save is denied by saveProject(), then move the visible workspace to an
   // authorized section or leave it behind the auth gate.
