@@ -733,7 +733,7 @@
   function isEditingText(target) { return target?.closest?.('input,textarea,select,[contenteditable="true"]'); }
 
   const permissionLabels = [
-    ['storyboards', 'Storyboards · usar y crear'],
+    ['storyboards', 'Storyboards · entrar, usar y crear'],
     ['reviewsView', 'Reviews · ver proyectos'],
     ['reviewsCreate', 'Reviews · crear proyectos y reviews'],
     ['reviewsEdit', 'Reviews · editar y comentar'],
@@ -741,6 +741,12 @@
   ];
   function permissionControls(container, values = {}) {
     for (const [key, label] of permissionLabels) {
+      if (key === 'storyboards' || key === 'reviewsView') {
+        const heading = document.createElement('strong');
+        heading.className = 'reviews-staff-permission-group';
+        heading.textContent = key === 'storyboards' ? 'ACCESO A APLICACIONES' : 'ACCIONES DENTRO DE REVIEWS';
+        container.append(heading);
+      }
       const wrapper = document.createElement('label'); wrapper.className = 'reviews-staff-permission';
       const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.dataset.permission = key; checkbox.checked = values[key] === true;
       const caption = document.createElement('span'); caption.textContent = label;

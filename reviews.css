@@ -78,6 +78,8 @@ body.legacy-public-review .reviews-view { grid-template-columns:minmax(0,1fr) mi
 .reviews-staff-state { color:#00895c; font:10px 'DM Mono',monospace; text-transform:uppercase; }
 .reviews-staff-state.is-pending { color:#af6910; }
 .reviews-staff-permissions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px 16px; }
+.reviews-staff-permission-group { grid-column:1/-1; margin-top:7px; padding-top:9px; border-top:1px solid #ddd; color:#777; font:10px 'DM Mono',monospace; letter-spacing:.04em; }
+.reviews-staff-permission-group:first-child { margin-top:0; padding-top:0; border-top:0; }
 .reviews-staff-permission { display:flex; align-items:center; gap:8px; min-width:0; color:#333; font-size:11px; cursor:pointer; }
 .reviews-staff-permission input { flex:none; accent-color:#111; }
 .reviews-staff-actions { justify-content:flex-start; }
