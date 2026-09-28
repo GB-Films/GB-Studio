@@ -2297,7 +2297,7 @@ window.addEventListener('studio-auth-change', () => {
   // Save is denied by saveProject(), then move the visible workspace to an
   // authorized section or leave it behind the auth gate.
   if (!document.body.classList.contains('auth-locked')) {
-    if (window.STUDIO_PERMISSIONS?.reviewsView) window.STUDIO_SHOW_REVIEWS?.();
+    if (window.STUDIO_PERMISSIONS?.reviewsView || window.STUDIO_PERMISSIONS?.reviewsClient) window.STUDIO_SHOW_REVIEWS?.();
     else document.body.classList.add('auth-locked');
   }
 });

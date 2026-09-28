@@ -50,7 +50,10 @@ function updateProfile(user, access = null, pending = false) {
   const name = user.displayName || user.email || 'Cuenta';
   if (profileName) profileName.textContent = name;
   if (profileEmail) profileEmail.textContent = user.email || '';
-  if (profileRole) profileRole.textContent = pending ? 'Pendiente de autorización' : access?.role === 'admin' ? 'Administrador' : 'Equipo autorizado';
+  if (profileRole) {
+    const roleNames = { client: 'Cliente', viewer: 'Lectura', collaborator: 'Colaborador/a', manager: 'Ejecutiva / Gerencia', custom: 'Equipo autorizado' };
+    profileRole.textContent = pending ? 'Pendiente de autorización' : access?.role === 'admin' ? 'Administrador' : roleNames[access?.roles?.reviews] || (access?.permissions?.storyboards ? 'Editor/a' : 'Equipo autorizado');
+  }
   if (profileAvatar) {
     profileAvatar.textContent = user.photoURL ? '' : name.trim().charAt(0).toUpperCase() || 'G';
     profileAvatar.style.backgroundImage = user.photoURL ? `url("${user.photoURL.replaceAll('"', '')}")` : '';
@@ -59,7 +62,7 @@ function updateProfile(user, access = null, pending = false) {
     profileModules.replaceChildren();
     const enabled = [];
     if (access?.permissions?.storyboards) enabled.push('Storyboards');
-    if (access?.permissions?.reviewsView) enabled.push('Reviews');
+    if (access?.permissions?.reviewsView || access?.permissions?.reviewsClient) enabled.push('Reviews');
     if (enabled.length) {
       const list = document.createElement('div'); list.className = 'profile-module-list';
       for (const moduleName of enabled) {
@@ -80,6 +83,7 @@ function renderSignedOut() {
   window.STUDIO_ROLE = null;
   window.STUDIO_USER = null;
   window.STUDIO_PERMISSIONS = {};
+  window.STUDIO_REVIEW_TOKENS = [];
   authGateButton.textContent = 'Continuar con Google →';
   accountAvatar.textContent = 'G';
   accountAvatar.style.backgroundImage = '';
@@ -96,6 +100,7 @@ function renderSignedIn(user, access) {
   window.STUDIO_SIGNED_IN = true;
   window.STUDIO_ROLE = access.role;
   window.STUDIO_PERMISSIONS = access.permissions;
+  window.STUDIO_REVIEW_TOKENS = access.reviewTokens || [];
   window.STUDIO_USER = user;
   const name = user.displayName || user.email || 'Cuenta';
   accountLabel.textContent = name;
@@ -113,7 +118,7 @@ function renderSignedIn(user, access) {
   setAuthGate(false);
   window.dispatchEvent(new Event('studio-auth-change'));
   if (!publicReview && !access.permissions.storyboards) window.STUDIO_SHOW_REVIEWS?.();
-  else if (!publicReview && !access.permissions.reviewsView && (!document.querySelector('#reviewsHome')?.hidden || !document.querySelector('#reviewsView')?.hidden)) window.showDashboard?.();
+  else if (!publicReview && !access.permissions.reviewsView && !access.permissions.reviewsClient && (!document.querySelector('#reviewsHome')?.hidden || !document.querySelector('#reviewsView')?.hidden)) window.showDashboard?.();
 }
 
 function renderNoAccess(user) {
@@ -121,6 +126,7 @@ function renderNoAccess(user) {
   window.STUDIO_SIGNED_IN = false;
   window.STUDIO_ROLE = null;
   window.STUDIO_PERMISSIONS = {};
+  window.STUDIO_REVIEW_TOKENS = [];
   window.STUDIO_USER = user;
   authGateButton.textContent = 'Cerrar sesión';
   accountAvatar.textContent = (user.displayName || user.email || 'G').charAt(0).toUpperCase();
@@ -143,7 +149,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
     const [{ initializeApp }, { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut }, cloud] = await Promise.all([
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js'),
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js'),
-      import('./reviews-cloud.js?v=3'),
+      import('./reviews-cloud.js?v=4'),
     ]);
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
