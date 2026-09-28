@@ -6,10 +6,10 @@ const { chromium } = require('playwright');
 const fulfillVideo = (route, base64) => {
   const body = Buffer.from(base64, 'base64');
   const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers().range || '');
-  if (!range) return route.fulfill({ status: 200, contentType: 'video/webm', headers: { 'accept-ranges': 'bytes' }, body });
+  if (!range) return route.fulfill({ status: 200, contentType: 'video/webm', headers: { 'accept-ranges': 'bytes', 'access-control-allow-origin': '*' }, body });
   const start = Math.min(Number(range[1]), body.length - 1);
   const end = range[2] ? Math.min(Number(range[2]), body.length - 1) : body.length - 1;
-  return route.fulfill({ status: 206, contentType: 'video/webm', headers: { 'accept-ranges': 'bytes', 'content-range': `bytes ${start}-${end}/${body.length}` }, body: body.subarray(start, end + 1) });
+  return route.fulfill({ status: 206, contentType: 'video/webm', headers: { 'accept-ranges': 'bytes', 'access-control-allow-origin': '*', 'content-range': `bytes ${start}-${end}/${body.length}` }, body: body.subarray(start, end + 1) });
 };
 
 const root = path.join(__dirname, '..');
@@ -73,6 +73,7 @@ const fakeFirebaseAuth = `
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await context.route('https://www.gstatic.com/firebasejs/**', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: route.request().url().includes('firebase-app.js') ? fakeFirebaseApp : fakeFirebaseAuth }));
     await context.route('**/reviews-cloud.js?v=6', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: fakeCloud }));
+    await context.route('https://dl.dropboxusercontent.com/scl/fi/**', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', headers: { 'access-control-allow-origin': '*' }, body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"></svg>' }));
     await context.route('https://www.dropbox.com/scl/fi/**', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"></svg>' }));
     const url = `http://127.0.0.1:${server.address().port}`;
     const reviewsUrl = `${url}/?app=reviews`;
@@ -84,17 +85,11 @@ const fakeFirebaseAuth = `
         window.dispatchEvent(new Event('studio-auth-change'));
       });
     };
-    const mockTabCapture = async target => target.evaluate(() => {
+    const rejectTabCapture = async target => target.evaluate(() => {
       window.captureRequests = 0;
       navigator.mediaDevices.getDisplayMedia = async () => {
         window.captureRequests += 1;
-        const capture = document.createElement('canvas'); capture.width = innerWidth; capture.height = innerHeight;
-        const context = capture.getContext('2d');
-        context.fillStyle = '#121212'; context.fillRect(0, 0, capture.width, capture.height);
-        context.fillStyle = '#ff00ff'; context.fillRect(4, 4, 16, 16);
-        const media = document.querySelector('#reviewsMediaSurface').getBoundingClientRect();
-        context.fillStyle = '#26a676'; context.fillRect(media.left, media.top, media.width, media.height);
-        return capture.captureStream(30);
+        throw new Error('The browser permission dialog must not open');
       };
     });
     await page.goto(reviewsUrl);
@@ -153,6 +148,8 @@ const fakeFirebaseAuth = `
     await namedGuest.goto(shareUrl);
     await namedGuest.locator('#reviewsImage').waitFor({ state: 'visible' });
     await namedGuest.waitForFunction(() => document.querySelector('#reviewsImage').naturalWidth > 0);
+    assert.match(await namedGuest.locator('#reviewsImage').evaluate(image => image.currentSrc), /^https:\/\/dl\.dropboxusercontent\.com\//, 'shared images use the CORS-enabled Dropbox content host');
+    assert.equal(await namedGuest.locator('#reviewsImage').evaluate(image => image.crossOrigin), 'anonymous');
     assert.equal(await namedGuest.locator('#reviewsView').isVisible(), true, 'the link opens the shared file directly');
     assert.equal(await namedGuest.locator('#reviewsViewTools').count(), 0, 'the extra viewer toolbar is gone');
     assert.equal(await namedGuest.locator('.reviews-main-head #reviewsZoomValue').isVisible(), true, 'zoom sits beside the filename');
@@ -184,12 +181,27 @@ const fakeFirebaseAuth = `
     assert.match(await namedGuest.locator('#reviewsShortcutsMenu').textContent(), /Ajustar imagen.*Pantalla completa.*Ocultar controles.*Ruedita.*desplazar/s);
     await namedGuest.keyboard.press('Escape');
     assert.equal(await namedGuest.locator('#reviewsShortcutsMenu').isVisible(), false);
-    await mockTabCapture(namedGuest);
+    await rejectTabCapture(namedGuest);
     const captureDownload = namedGuest.waitForEvent('download');
     await namedGuest.locator('#reviewsScreenshotBtn').click();
-    assert.match((await captureDownload).suggestedFilename(), /foto-captura\.png$/);
-    assert.equal(await namedGuest.evaluate(() => window.captureRequests), 1, 'cross-origin media uses authorized tab capture');
+    const photoPng = await captureDownload;
+    assert.match(photoPng.suggestedFilename(), /foto-captura\.png$/);
+    const photoBytes = fs.readFileSync(await photoPng.path());
+    assert.deepEqual([photoBytes.readUInt32BE(16), photoBytes.readUInt32BE(20)], [320, 180], 'the image exports at its native dimensions');
+    assert.equal(await namedGuest.evaluate(() => window.captureRequests), 0, 'PNG download does not ask to capture the tab');
     assert.match(await namedGuest.locator('#reviewsCommentContext').textContent(), /Captura PNG descargada/);
+    const fallbackGuest = await context.newPage(); fallbackGuest.on('pageerror', error => errors.push(error.message));
+    await fallbackGuest.route('https://dl.dropboxusercontent.com/scl/fi/**', route => route.abort());
+    await fallbackGuest.goto(shareUrl);
+    await fallbackGuest.waitForFunction(() => document.querySelector('#reviewsImage').naturalWidth > 0);
+    assert.match(await fallbackGuest.locator('#reviewsImage').evaluate(image => image.currentSrc), /^https:\/\/www\.dropbox\.com\//, 'a blocked CORS link falls back to the viewable Dropbox link');
+    await rejectTabCapture(fallbackGuest);
+    let unexpectedDownload = false; fallbackGuest.on('download', () => { unexpectedDownload = true; });
+    await fallbackGuest.locator('#reviewsScreenshotBtn').click();
+    await fallbackGuest.waitForFunction(() => /Dropbox no permite exportar/.test(document.querySelector('#reviewsCommentContext').textContent));
+    assert.equal(await fallbackGuest.evaluate(() => window.captureRequests), 0, 'a blocked CORS link never triggers a browser capture prompt');
+    assert.equal(unexpectedDownload, false, 'a blocked CORS link does not download a corrupt PNG');
+    await fallbackGuest.close();
     assert.equal(await namedGuest.locator('#authGate').isVisible(), false, 'viewing requires no sign-in');
     assert.equal(await namedGuest.locator('#reviewsGuestName').isVisible(), true);
     assert.equal(await namedGuest.locator('#reviewsGuestGoogle').isVisible(), true);
@@ -320,6 +332,7 @@ const fakeFirebaseAuth = `
     await videoGuest.goto(`${reviewsUrl}#share=${'B'.repeat(43)}&file=client-video`);
     await videoGuest.locator('#reviewsDownloadBtn').waitFor({ state: 'visible' });
     await videoGuest.waitForFunction(() => document.querySelector('#reviewsVideo').videoWidth > 0);
+    assert.match(await videoGuest.locator('#reviewsVideo').evaluate(video => video.currentSrc), /^https:\/\/dl\.dropboxusercontent\.com\//, 'shared videos use the CORS-enabled Dropbox content host');
     assert.equal(await videoGuest.locator('#reviewsMediaTitle').textContent(), 'revision.webm', 'the file in the shared link opens instead of the first file');
     const videoBounds = await videoGuest.locator('#reviewsVideo').boundingBox();
     const videoCenter = { x: videoBounds.x + videoBounds.width / 2, y: videoBounds.y + videoBounds.height / 2 };
@@ -331,11 +344,14 @@ const fakeFirebaseAuth = `
     assert.ok(Math.abs(movedVideo.x - videoBounds.x + 37) < 2 && Math.abs(movedVideo.y - videoBounds.y - 26) < 2, 'middle-button drag pans the video itself');
     assert.equal(await videoGuest.locator('#reviewsVideo').evaluate(video => video.paused), true, 'middle-button drag does not toggle video playback');
     await videoGuest.keyboard.press('h');
-    await mockTabCapture(videoGuest);
+    await rejectTabCapture(videoGuest);
     const frameDownload = videoGuest.waitForEvent('download');
     await videoGuest.locator('#reviewsScreenshotBtn').click();
-    assert.match((await frameDownload).suggestedFilename(), /revision-fotograma-\d+\.png$/);
-    assert.equal(await videoGuest.evaluate(() => window.captureRequests), 1, 'Dropbox video frames use the tab capture fallback');
+    const framePng = await frameDownload;
+    assert.match(framePng.suggestedFilename(), /revision-fotograma-\d+\.png$/);
+    const frameBytes = fs.readFileSync(await framePng.path());
+    assert.deepEqual([frameBytes.readUInt32BE(16), frameBytes.readUInt32BE(20)], [320, 180], 'the video frame exports at its native dimensions');
+    assert.equal(await videoGuest.evaluate(() => window.captureRequests), 0, 'video PNG download does not ask to capture the tab');
     assert.equal(await videoGuest.locator('#authGate').isVisible(), false);
     assert.equal(await videoGuest.locator('#reviewsRemoveMedia').isVisible(), false);
     await videoGuest.evaluate(() => { HTMLAnchorElement.prototype.click = function () { window.clientDownload = this.href; }; });

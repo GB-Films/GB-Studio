@@ -4,7 +4,7 @@
   const $ = selector => document.querySelector(selector);
   const DB_NAME = 'gb-studio-reviews-v1';
   const ACTIVE_KEY = 'gb-studio-reviews-active-v1';
-  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], undoHistory: [], activeCommentId: null, pointerId: null, shapeRawPoint: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, panPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
+  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, mediaCorsFallback: false, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], undoHistory: [], activeCommentId: null, pointerId: null, shapeRawPoint: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, panPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
   const video = $('#reviewsVideo');
   const image = $('#reviewsImage');
   const canvas = $('#reviewsCanvas');
@@ -78,6 +78,7 @@
     url.hash = '';
     url.searchParams.delete('dl'); url.searchParams.delete('raw');
     const sourceUrl = url.href;
+    url.hostname = 'dl.dropboxusercontent.com';
     url.searchParams.set('raw', '1');
     const pathParts = url.pathname.split('/').filter(Boolean);
     let name = pathParts.length > (pathParts[0] === 's' ? 2 : 3) ? pathParts.at(-1) : 'Archivo de Dropbox';
@@ -361,7 +362,7 @@
     $('#reviewsAddSection').hidden = guest || !canReview('reviewsEdit');
     $('#reviewsShareBtn').hidden = guest || state.active?.source !== 'dropbox' || !canReview('reviewsShare');
     $('#reviewsScreenshotBtn').hidden = !state.active || state.active.kind === 'model';
-    $('#reviewsScreenshotBtn').title = state.active?.source === 'dropbox' ? 'Guardar captura PNG · elegí Esta pestaña en el permiso' : 'Guardar captura PNG';
+    $('#reviewsScreenshotBtn').title = 'Descargar captura PNG';
     $('#reviewsDownloadBtn').hidden = !isVideo();
     $('#reviewsCommentStorageNote').textContent = state.shareToken || currentVersion()?.shareToken ? 'Los comentarios y dibujos de esta review se comparten con quienes tengan el enlace.' : 'Este comentario se guarda solo en este navegador hasta que compartas la review.';
     renderCommentList();
@@ -651,7 +652,7 @@
     const record = state.records.find(entry => entry.id === id); if (!record) return;
     stopPan();
     state.stopComments?.(); state.stopComments = null;
-    stopMedia(); state.active = record; state.draft = []; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.activeCommentId = null; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; resetView();
+    stopMedia(); state.active = record; state.mediaCorsFallback = false; state.draft = []; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.activeCommentId = null; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; resetView();
     localStorage.setItem(ACTIVE_KEY, id);
     renderList(); renderCommentList();
     $('#reviewsMediaTitle').textContent = record.name;
@@ -667,6 +668,7 @@
     canvas.classList.remove('is-drawing');
     showStatus(record.kind === 'video' ? 'Los comentarios se guardan en el segundo actual.' : record.kind === 'model' ? 'Arrastrá para orbitar el modelo. Los comentarios no cambian el FBX.' : 'Los comentarios se guardan sobre esta foto.');
     image.hidden = record.kind !== 'image'; video.hidden = record.kind !== 'video'; $('#reviewsModel').hidden = record.kind !== 'model'; canvas.hidden = record.kind === 'model';
+    image.crossOrigin = 'anonymous'; video.crossOrigin = 'anonymous';
     renderPlaybackSettings(); requestAnimationFrame(fitSurface);
     applyReviewPermissions();
     const token = state.shareToken || currentVersion()?.shareToken;
@@ -860,42 +862,6 @@
   function pngBlob(output) {
     return new Promise((resolve, reject) => output.toBlob(blob => blob ? resolve(blob) : reject(new Error('No se pudo generar el PNG.')), 'image/png'));
   }
-  async function captureVisibleTab() {
-    if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('Este navegador no permite capturar la pestaña. Probá con Chrome o Edge.');
-    // A marker outside the viewer verifies that the user actually chose this tab.
-    const marker = document.createElement('span');
-    Object.assign(marker.style, { position: 'fixed', left: '4px', top: '4px', width: '16px', height: '16px', background: '#ff00ff', zIndex: '2147483647', pointerEvents: 'none' });
-    (document.fullscreenElement || document.body).append(marker);
-    let stream, preview;
-    try {
-      showStatus('Elegí «Esta pestaña» en el permiso del navegador para guardar el fotograma.');
-      stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include' });
-      const surface = stream.getVideoTracks()[0]?.getSettings().displaySurface;
-      if (surface && surface !== 'browser') throw new Error('Elegí «Esta pestaña», no otra ventana o pantalla.');
-      preview = document.createElement('video'); preview.muted = true; preview.playsInline = true; preview.srcObject = stream;
-      await preview.play();
-      if (!preview.videoWidth || !preview.videoHeight) throw new Error('No se recibió la imagen de la pestaña.');
-      await new Promise(resolve => setTimeout(resolve, 120));
-      const scaleX = preview.videoWidth / innerWidth, scaleY = preview.videoHeight / innerHeight;
-      const check = document.createElement('canvas'); check.width = check.height = 1;
-      check.getContext('2d').drawImage(preview, 10 * scaleX, 10 * scaleY, 4 * scaleX, 4 * scaleY, 0, 0, 1, 1);
-      const [red, green, blue] = check.getContext('2d').getImageData(0, 0, 1, 1).data;
-      if (red < 190 || green > 90 || blue < 190) throw new Error('No se detectó esta pestaña. Seleccionala en el permiso e intentá de nuevo.');
-      marker.remove();
-      await new Promise(resolve => setTimeout(resolve, 120));
-      const media = $('#reviewsMediaSurface').getBoundingClientRect(), stage = $('#reviewsStage').getBoundingClientRect();
-      const left = Math.max(0, media.left, stage.left), top = Math.max(0, media.top, stage.top);
-      const right = Math.min(innerWidth, media.right, stage.right), bottom = Math.min(innerHeight, media.bottom, stage.bottom);
-      if (right <= left || bottom <= top) throw new Error('El archivo no está visible para capturarlo.');
-      const output = document.createElement('canvas'); output.width = Math.round((right - left) * scaleX); output.height = Math.round((bottom - top) * scaleY);
-      output.getContext('2d').drawImage(preview, left * scaleX, top * scaleY, (right - left) * scaleX, (bottom - top) * scaleY, 0, 0, output.width, output.height);
-      return pngBlob(output);
-    } finally {
-      marker.remove();
-      stream?.getTracks().forEach(track => track.stop());
-      if (preview) preview.srcObject = null;
-    }
-  }
   async function screenshot() {
     if (!state.active) return;
     const record = state.active;
@@ -908,17 +874,15 @@
       const context = output.getContext('2d');
       context.drawImage(source, 0, 0, width, height);
       if (!canvas.hidden) context.drawImage(canvas, 0, 0, width, height);
-      let blob;
-      try { context.getImageData(0, 0, 1, 1); blob = await pngBlob(output); }
-      catch (error) { if (error.name !== 'SecurityError') throw error; blob = await captureVisibleTab(); }
+      const blob = await pngBlob(output);
       if (state.active?.id !== record.id) return;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${record.name.replace(/\.[^.]+$/, '')}-${record.kind === 'video' ? `fotograma-${frameNumber()}` : 'captura'}.png`; anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       showStatus('Captura PNG descargada.');
     } catch (error) {
-      showStatus(error.name === 'NotAllowedError' ? 'Captura cancelada. Permití compartir esta pestaña para guardar el fotograma.' : error.message || 'No se pudo guardar la captura.');
-      if (error.name !== 'NotAllowedError') console.error(error);
+      showStatus(error.name === 'SecurityError' ? 'Dropbox no permite exportar este archivo como PNG. Revisá que el enlace sea público.' : error.message || 'No se pudo guardar la captura.');
+      console.error(error);
     }
   }
   function downloadVideo() {
@@ -1413,7 +1377,17 @@
   video.addEventListener('timeupdate', () => { if (!video.paused && Number.isFinite(state.active?.outPoint) && currentTime() >= state.active.outPoint) { video.pause(); video.currentTime = state.active.outPoint; } updateClock(); });
   video.addEventListener('play', () => { state.activeCommentId = null; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false'); redraw(); renderCommentList(); updateClock(); });
   video.addEventListener('pause', updateClock);
-  const mediaError = () => { if (state.active?.source === 'dropbox') { $('#reviewsMediaError').hidden = false; showStatus('No se pudo abrir el enlace de Dropbox. Revisá el acceso y el formato del archivo.'); } else showStatus('El formato no se puede reproducir en este navegador. Probá con MP4 (H.264), WebM o una foto compatible.'); };
+  const mediaError = event => {
+    const media = event.target;
+    if (state.active?.source === 'dropbox' && !state.mediaCorsFallback && !media.hidden) {
+      state.mediaCorsFallback = true;
+      const url = new URL(state.active.sourceUrl); url.searchParams.set('raw', '1');
+      media.removeAttribute('crossorigin'); media.src = url.href;
+      return;
+    }
+    if (state.active?.source === 'dropbox') { $('#reviewsMediaError').hidden = false; showStatus('No se pudo abrir el enlace de Dropbox. Revisá el acceso y el formato del archivo.'); }
+    else showStatus('El formato no se puede reproducir en este navegador. Probá con MP4 (H.264), WebM o una foto compatible.');
+  };
   video.addEventListener('error', mediaError);
   image.addEventListener('error', mediaError);
   function syncDrawingControls() {
