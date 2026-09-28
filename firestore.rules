@@ -9,15 +9,27 @@ service cloud.firestore {
     function admin() {
       return googleUser() && request.auth.token.email.lower() == 'info@granbertafilms.com';
     }
+    function staffData() {
+      return get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data;
+    }
+    function clientRole() {
+      let staff = staffData();
+      return ('roles' in staff && 'reviews' in staff.roles && staff.roles.reviews == 'client')
+        || ('permissions' in staff && 'reviewsClient' in staff.permissions && staff.permissions.reviewsClient == true);
+    }
     function permission(name) {
       return admin() || (googleUser()
         && exists(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower()))
         && (!('active' in get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data)
           || get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data.active == true)
-        // Older team entries predate granular permissions and retain their access.
-        && (!('permissions' in get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data)
-          || (name in get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data.permissions
-            && get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data.permissions[name] == true)));
+        // Client is exclusive even when an older record also contains broad Mira flags.
+        && (name in ['storyboards', 'storyboardsView', 'reviewsClient'] || !clientRole())
+        // Legacy records without explicit permissions keep Visto, never all of Mira.
+        && ((name in ['storyboards', 'storyboardsView'] && !('permissions' in staffData()))
+          || (name == 'reviewsClient' && clientRole())
+          || ('permissions' in staffData()
+            && name in staffData().permissions
+            && staffData().permissions[name] == true)));
     }
     function activeShare(token) {
       return exists(/databases/$(database)/documents/reviewShares/$(token))

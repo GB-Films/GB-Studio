@@ -8,10 +8,16 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const ADMIN_EMAIL = 'info@granbertafilms.com';
 export const PERMISSION_KEYS = ['storyboards', 'storyboardsView', 'reviewsClient', 'reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'];
-export const ALL_PERMISSIONS = Object.fromEntries(PERMISSION_KEYS.map(key => [key, true]));
+export const ALL_PERMISSIONS = { ...Object.fromEntries(PERMISSION_KEYS.map(key => [key, true])), reviewsClient: false };
 function normalizedPermissions(data) {
   if (!data || data.active === false) return null;
-  const permissions = data.permissions ? Object.fromEntries(PERMISSION_KEYS.map(key => [key, data.permissions[key] === true])) : { ...ALL_PERMISSIONS };
+  const permissions = Object.fromEntries(PERMISSION_KEYS.map(key => [key, data.permissions?.[key] === true]));
+  // Legacy entries without explicit permissions keep Visto, but never inherit all of Mira.
+  if (!data.permissions) { permissions.storyboards = true; permissions.storyboardsView = true; }
+  if (data.roles?.reviews === 'client' || permissions.reviewsClient) {
+    permissions.reviewsClient = true;
+    for (const key of ['reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare']) permissions[key] = false;
+  }
   return Object.values(permissions).some(Boolean) ? permissions : null;
 }
 const shareRef = token => doc(db, 'reviewShares', token);
