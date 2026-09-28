@@ -1,6 +1,6 @@
 # GB Studio
 
-La [página principal de GB Studio](https://gb-films.github.io/StoryApp/) reúne los accesos a [Visto](https://gb-films.github.io/StoryApp/?app=storyboards) para organizar tomas y [ViewSync](https://gb-films.github.io/StoryApp/?app=reviews) para corregir fotos y videos. La cabecera permite volver al inicio o cambiar entre las herramientas habilitadas para la cuenta. Los enlaces de revisiones compartidos anteriormente siguen abriendo el visor. Las rutas internas conservan `storyboards` y `reviews` para no cortar los enlaces existentes.
+La [página principal de GB Studio](https://gb-films.github.io/StoryApp/) reúne los accesos a [Mira](https://gb-films.github.io/StoryApp/?app=storyboards) para organizar tomas y [ViewSync](https://gb-films.github.io/StoryApp/?app=reviews) para corregir fotos y videos. La cabecera permite volver al inicio o cambiar entre las herramientas habilitadas para la cuenta. Los enlaces de revisiones compartidos anteriormente siguen abriendo el visor. Las rutas internas conservan `storyboards` y `reviews` para no cortar los enlaces existentes.
 
 ## ViewSync
 
