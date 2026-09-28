@@ -93,7 +93,7 @@ function updateProfile(user, access = null, pending = false) {
   if (profileEmail) profileEmail.textContent = user.email || '';
   const permissions = access?.permissions || {};
   if (profileVistoRole) profileVistoRole.textContent = pending ? 'Pendiente' : permissions.storyboards ? 'Acceso completo' : permissions.storyboardsView ? 'Solo lectura' : 'Sin acceso';
-  if (profileMiraRole) profileMiraRole.textContent = pending ? 'Pendiente' : permissions.reviewsClient ? 'Cliente' : permissions.reviewsView && permissions.reviewsCreate && permissions.reviewsEdit && permissions.reviewsShare ? 'Acceso completo' : permissions.reviewsView && permissions.reviewsEdit ? 'Edición' : permissions.reviewsView ? 'Solo lectura' : 'Sin acceso';
+  if (profileMiraRole) profileMiraRole.textContent = access?.role === 'review_guest' ? 'Invitado de review' : pending ? 'Pendiente' : permissions.reviewsClient ? 'Cliente' : permissions.reviewsView && permissions.reviewsCreate && permissions.reviewsEdit && permissions.reviewsShare ? 'Acceso completo' : permissions.reviewsView && permissions.reviewsEdit ? 'Edición' : permissions.reviewsView ? 'Solo lectura' : 'Sin acceso';
   if (profileAvatar) {
     profileAvatar.textContent = user.photoURL ? '' : name.trim().charAt(0).toUpperCase() || 'G';
     profileAvatar.style.backgroundImage = user.photoURL ? `url("${user.photoURL.replaceAll('"', '')}")` : '';
@@ -102,7 +102,7 @@ function updateProfile(user, access = null, pending = false) {
     profileModules.replaceChildren();
     const enabled = [];
     if (access?.permissions?.storyboards || access?.permissions?.storyboardsView) enabled.push('Visto');
-    if (access?.permissions?.reviewsView || access?.permissions?.reviewsClient) enabled.push('Mira');
+    if (access?.role === 'review_guest' || access?.permissions?.reviewsView || access?.permissions?.reviewsClient) enabled.push('Mira');
     if (enabled.length) {
       const list = document.createElement('div'); list.className = 'profile-module-list';
       for (const moduleName of enabled) {
@@ -196,6 +196,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
   homeAppHandler = missingConfigMessage;
   accountButton?.addEventListener('click', missingConfigMessage);
   authGateButton?.addEventListener('click', missingConfigMessage);
+  document.querySelector('#reviewsGuestGoogle')?.addEventListener('click', missingConfigMessage);
 } else {
   try {
     const [{ initializeApp }, { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut }, cloud] = await Promise.all([
@@ -213,6 +214,8 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
       if (!user || user.isAnonymous) { renderSignedOut(); return; }
       const google = user.emailVerified && user.providerData.some(item => item.providerId === 'google.com');
       if (!google) { renderNoAccess(user); return; }
+      // A shared review is a link-scoped client visit, not a request for studio access.
+      if (publicReview) { renderSignedIn(user, { role: 'review_guest', permissions: {} }); return; }
       if (user.email?.toLowerCase() === 'info@granbertafilms.com') { renderSignedIn(user, { role: 'admin', permissions: { ...cloud.ALL_PERMISSIONS } }); return; }
       if (!publicReview) setAuthPending();
       if (!publicReview) cloud.registerAccessRequest(user).catch(error => {
@@ -268,6 +271,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
       if (auth.currentUser && !auth.currentUser.isAnonymous) openProfile();
       else await signIn();
     });
+    document.querySelector('#reviewsGuestGoogle')?.addEventListener('click', signIn);
     document.querySelector('#profileCloseIcon')?.addEventListener('click', closeProfile);
     document.querySelector('#profileCloseButton')?.addEventListener('click', closeProfile);
     profileModal?.addEventListener('click', event => { if (event.target === profileModal) closeProfile(); });
@@ -288,5 +292,6 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
     homeAppHandler = initErrorMessage;
     accountButton?.addEventListener('click', initErrorMessage);
     authGateButton?.addEventListener('click', initErrorMessage);
+    document.querySelector('#reviewsGuestGoogle')?.addEventListener('click', initErrorMessage);
   }
 }

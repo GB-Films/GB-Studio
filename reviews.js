@@ -91,7 +91,9 @@
     catch { return null; }
   }
   const sharedReview = sharedReviewFromHash();
-  const sharedToken = new URLSearchParams(location.hash.slice(1)).get('share');
+  const sharedParams = new URLSearchParams(location.hash.slice(1));
+  const sharedToken = sharedParams.get('share');
+  const sharedFileId = sharedParams.get('file');
   if (sharedReview || sharedToken) document.body.classList.add('public-review');
   if (sharedReview) document.body.classList.add('legacy-public-review');
   if (sharedToken) { state.shareToken = sharedToken; state.guestName = sessionStorage.getItem(`gb-review-guest:${sharedToken}`) || ''; }
@@ -276,12 +278,14 @@
         await saveProject(updated);
         state.projects = state.projects.map(entry => entry.id === project.id ? updated : entry);
       }
-      const link = new URL(location.href); link.hash = new URLSearchParams({ share: token }).toString();
+      const selected = records.find(record => record.id === state.active?.id) || records.sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0))[0];
+      const link = new URL(location.href); link.searchParams.set('app', 'reviews');
+      link.hash = new URLSearchParams({ share: token, file: selected.id }).toString();
       $('#reviewsCopyInput').value = link.href;
       $('#reviewsCopyModal').hidden = false;
       $('#reviewsCopyInput').focus(); $('#reviewsCopyInput').select();
-      try { await navigator.clipboard.writeText(link.href); $('#reviewsCopyDescription').textContent = 'Enlace copiado. El cliente solo verá esta review; podrá comentar y dibujar luego de escribir su nombre.'; }
-      catch { $('#reviewsCopyDescription').textContent = 'Copiá el enlace para enviárselo al cliente. Solo podrá entrar a esta review.'; }
+      try { await navigator.clipboard.writeText(link.href); $('#reviewsCopyDescription').textContent = `Enlace copiado. Abre este archivo directamente; el cliente puede ${selected.kind === 'video' ? 'ver y descargar el video' : 'ver la foto'} sin cuenta, o comentar con su nombre o Google.`; }
+      catch { $('#reviewsCopyDescription').textContent = 'Copiá el enlace para enviárselo al cliente. Abrirá este archivo directamente, sin entrar al resto de Mira.'; }
       if (!$('#reviewsHome').hidden) renderHome();
     } catch (error) {
       console.error('Review sharing failed', error);
@@ -330,17 +334,23 @@
     } catch (error) { console.error(error); $('#reviewsHomeCopy').textContent = 'No se pudo eliminar esta review. Revisá el almacenamiento del navegador.'; }
   }
   function isGuestReview() { return document.body.classList.contains('public-review'); }
-  function canComment() { return isGuestReview() ? Boolean(state.shareToken && (state.guestName || window.STUDIO_SIGNED_IN)) : canReview('reviewsEdit') || (canReview('reviewsClient') && Boolean(currentVersion()?.shareToken)); }
+  function canComment() { return isGuestReview() ? Boolean(state.shareToken && (state.guestName || window.STUDIO_ROLE === 'review_guest')) : canReview('reviewsEdit') || (canReview('reviewsClient') && Boolean(currentVersion()?.shareToken)); }
   function applyReviewPermissions() {
     const guest = isGuestReview();
     $('#reviewsGuestPrompt').hidden = !guest || canComment() || !state.shareToken;
+    $('#reviewsGuestPromptCopy').textContent = isVideo() ? 'Podés mirar y descargar el video sin iniciar sesión. Para comentar, elegí una opción:' : 'Podés mirar la foto sin iniciar sesión. Para comentar, elegí una opción:';
+    const identity = guest ? window.STUDIO_ROLE === 'review_guest' ? window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Google' : state.guestName : '';
+    const identityNote = $('#reviewsCommentIdentity');
+    identityNote.hidden = !identity;
+    identityNote.replaceChildren();
+    if (identity) { identityNote.append('Comentando como '); const name = document.createElement('strong'); name.textContent = identity; identityNote.append(name); }
     $('#reviewsCommentForm').hidden = !canComment() || !state.active;
     $('#reviewsAnnotationBar').hidden = !canComment() || !state.active;
     $('#reviewsRemoveMedia').hidden = guest || !state.active || !canReview('reviewsEdit');
     $('#reviewsLinkBtn').hidden = guest || !canReview('reviewsEdit');
     $('#reviewsAddSection').hidden = guest || !canReview('reviewsEdit');
     $('#reviewsShareBtn').hidden = guest || state.active?.source !== 'dropbox' || !canReview('reviewsShare');
-    $('#reviewsDownloadBtn').hidden = !isMp4();
+    $('#reviewsDownloadBtn').hidden = !isVideo();
     $('#reviewsCommentStorageNote').textContent = state.shareToken || currentVersion()?.shareToken ? 'Los comentarios y dibujos de esta review se comparten con quienes tengan el enlace.' : 'Este comentario se guarda solo en este navegador hasta que compartas la review.';
     renderCommentList();
   }
@@ -356,7 +366,6 @@
   function frameNumber() { return firstFrame() + Math.min(frameIndex(), lastFrameIndex()); }
   function frameMode() { return state.active?.timelineMode === 'frames'; }
   function seekFrame(index) { if (!isVideo() || !Number.isFinite(video.duration)) return; video.pause(); video.currentTime = Math.min(video.duration, Math.max(0, Math.min(lastFrameIndex(), Math.round(index))) / fps()); updateClock(); }
-  function isMp4() { return isVideo() && /\.mp4$/i.test(state.active?.name || ''); }
   async function saveActiveSettings() { if (!state.active || isGuestReview() || state.active.ephemeral) return; state.active.updatedAt = new Date().toISOString(); try { await saveRecord(state.active); } catch { showStatus('No se pudieron guardar los ajustes.'); } }
   function resetView() { state.view = { scale: 1, x: 0, y: 0 }; applyView(); state.model?.fit(); }
   function applyView() { $('#reviewsMediaSurface').style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`; $('#reviewsZoomValue').textContent = `${Math.round(state.view.scale * 100)}%`; }
@@ -444,6 +453,7 @@
   function recordSection(record) { return record.sectionId || 'default'; }
   function orderedRecords(sectionId) { return versionRecords().filter(record => recordSection(record) === sectionId).sort((a, b) => (Number.isFinite(a.sortIndex) ? a.sortIndex : -Date.parse(a.createdAt || a.updatedAt)) - (Number.isFinite(b.sortIndex) ? b.sortIndex : -Date.parse(b.createdAt || b.updatedAt))); }
   async function moveRecord(recordId, targetSectionId, beforeId = null) {
+    if (isGuestReview() || !canReview('reviewsEdit')) return;
     const record = versionRecords().find(entry => entry.id === recordId);
     if (!record || !sectionDefinitions().some(section => section.id === targetSectionId)) return;
     const sourceSectionId = recordSection(record);
@@ -502,7 +512,7 @@
       const sectionRecords = currentVersion() ? orderedRecords(section.id) : records;
       const count = document.createElement('span'); count.textContent = String(sectionRecords.length);
       heading.append(title, count);
-      if (section.id !== 'default' && !isGuestReview()) {
+      if (section.id !== 'default' && !isGuestReview() && canReview('reviewsEdit')) {
         const edit = cardAction('✎', `Renombrar sección ${section.title}`, () => openSectionForm(section));
         const remove = cardAction('×', `Eliminar sección ${section.title}`, () => deleteSection(section.id));
         heading.append(edit, remove);
@@ -510,7 +520,7 @@
       const files = document.createElement('div'); files.className = 'reviews-section-files'; files.dataset.sectionId = section.id;
       if (!sectionRecords.length) { const empty = document.createElement('p'); empty.className = 'reviews-section-empty'; empty.textContent = records.length ? 'Arrastrá acá un archivo de esta review' : 'Vinculá un archivo de Dropbox'; files.append(empty); }
       for (const record of sectionRecords) {
-        const button = document.createElement('button'); button.type = 'button'; button.className = `reviews-file${record.id === state.active?.id ? ' is-active' : ''}`; button.dataset.recordId = record.id; button.draggable = Boolean(currentVersion()) && !isGuestReview();
+        const button = document.createElement('button'); button.type = 'button'; button.className = `reviews-file${record.id === state.active?.id ? ' is-active' : ''}`; button.dataset.recordId = record.id; button.draggable = Boolean(currentVersion()) && !isGuestReview() && canReview('reviewsEdit');
         const icon = document.createElement('span'); icon.className = 'reviews-file-icon'; icon.textContent = record.kind === 'video' ? '▶' : record.kind === 'model' ? '◇' : '▧';
         const copy = document.createElement('span'); copy.className = 'reviews-file-copy';
         const name = document.createElement('strong'); name.textContent = record.name;
@@ -547,7 +557,7 @@
       const text = document.createElement('span'); text.className = 'reviews-comment-text'; text.textContent = comment.text || 'Anotación visual';
       open.append(meta, text); open.addEventListener('click', () => selectComment(comment.id));
       card.append(open);
-      if (canReview('reviewsEdit') || (isGuestReview() && comment.authorUid && comment.authorUid === state.guestUid) || (canReview('reviewsClient') && comment.authorUid === window.STUDIO_USER?.uid)) {
+      if (!isGuestReview() && canReview('reviewsEdit')) {
         const actions = document.createElement('div'); actions.className = 'reviews-comment-actions';
         const resolve = document.createElement('button'); resolve.type = 'button'; resolve.textContent = comment.resolved ? 'Reabrir' : 'Resolver'; resolve.addEventListener('click', () => updateComment(comment.id, entry => { entry.resolved = !entry.resolved; }));
         const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Eliminar'; remove.addEventListener('click', () => updateComment(comment.id, null));
@@ -599,7 +609,7 @@
     $('#reviewsShareBtn').hidden = record.source !== 'dropbox' || isGuestReview() || !canReview('reviewsShare');
     $('#reviewsEmpty').hidden = true; $('#reviewsMediaSurface').hidden = false;
     $('#reviewsAnnotationBar').hidden = false; $('#reviewsCommentForm').hidden = false; $('#reviewsRemoveMedia').hidden = false;
-    $('#reviewsViewTools').hidden = false; $('#reviewsPlaybackTools').hidden = record.kind !== 'video'; $('#reviewsDownloadBtn').hidden = !isMp4();
+    $('#reviewsViewTools').hidden = false; $('#reviewsPlaybackTools').hidden = record.kind !== 'video'; $('#reviewsDownloadBtn').hidden = !isVideo();
     $('#reviewsTimeline').hidden = record.kind !== 'video';
     $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false');
     canvas.classList.remove('is-drawing');
@@ -656,7 +666,7 @@
     renderCommentList(); redraw(); updateClock();
   }
   async function updateComment(id, mutate) {
-    if (!state.active || !canComment()) return;
+    if (!state.active || isGuestReview() || !canReview('reviewsEdit')) return;
     const previous = structuredClone(state.active.comments);
     if (mutate) { const entry = state.active.comments.find(comment => comment.id === id); if (!entry) return; mutate(entry); }
     else state.active.comments = state.active.comments.filter(comment => comment.id !== id);
@@ -739,7 +749,7 @@
         state.projects = [project]; state.projectId = project.id; state.versionId = share.versionId;
         state.records = share.files;
         showReviews();
-        const first = share.files.sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0))[0];
+        const first = share.files.find(file => file.id === sharedFileId) || share.files.sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0))[0];
         if (first) await selectRecord(first.id); else clearViewer();
         if (state.guestName) (await cloud()).guestIdentity().then(user => { state.guestUid = user.uid; renderCommentList(); }).catch(error => console.error('Guest session could not resume', error));
       } catch (error) {
@@ -812,8 +822,8 @@
       showStatus('Captura PNG descargada.');
     } catch (error) { showStatus('No se pudo capturar este archivo externo: Dropbox no habilita la lectura de sus píxeles desde esta página.'); console.error(error); }
   }
-  function downloadMp4() {
-    if (!isMp4()) return;
+  function downloadVideo() {
+    if (!isVideo()) return;
     const anchor = document.createElement('a');
     if (state.active.source === 'dropbox') { const url = new URL(state.active.sourceUrl); url.searchParams.set('dl', '1'); anchor.href = url.href; }
     else anchor.href = state.mediaUrl;
@@ -1090,7 +1100,7 @@
   $('#reviewsCopyClose').addEventListener('click', () => { $('#reviewsCopyModal').hidden = true; });
   $('#reviewsCopyDone').addEventListener('click', () => { $('#reviewsCopyModal').hidden = true; });
   $('#reviewsCopyLink').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText($('#reviewsCopyInput').value); $('#reviewsCopyDescription').textContent = 'Enlace copiado. El cliente solo verá esta review.'; }
+    try { await navigator.clipboard.writeText($('#reviewsCopyInput').value); $('#reviewsCopyDescription').textContent = 'Enlace copiado. El cliente abrirá este archivo directamente, sin entrar al resto de Mira.'; }
     catch { $('#reviewsCopyInput').focus(); $('#reviewsCopyInput').select(); $('#reviewsCopyDescription').textContent = 'Seleccioná el enlace y copialo con Ctrl+C.'; }
   });
   for (const id of ['#reviewsFormModal', '#reviewsConfirmModal', '#reviewsCopyModal']) $(id).addEventListener('click', event => { if (event.target !== $(id)) return; if (id === '#reviewsFormModal') closeForm(); else if (id === '#reviewsConfirmModal') closeConfirmation(false); else $(id).hidden = true; });
@@ -1136,6 +1146,10 @@
     } finally { $('#reviewsGuestLogin').disabled = false; }
   });
   window.addEventListener('studio-auth-change', () => {
+    if (isGuestReview() && window.STUDIO_ROLE === 'review_guest' && state.guestName) {
+      state.guestName = ''; state.guestUid = null;
+      sessionStorage.removeItem(`gb-review-guest:${state.shareToken}`);
+    }
     $('#reviewsAdminBtn').hidden = window.STUDIO_ROLE !== 'admin';
     $('#reviewsNav').hidden = !canEnterReviews();
     if (!window.STUDIO_SIGNED_IN) { $('#reviewsAdminModal').hidden = true; $('#reviewsPersonModal').hidden = true; }
@@ -1213,7 +1227,7 @@
   $('#reviewsFrameStart').addEventListener('change', event => { if (!isVideo()) return; state.active.frameStart = Math.max(0, Math.min(9999999, Math.round(Number(event.target.value) || 0))); renderPlaybackSettings(); saveActiveSettings(); });
   $('#reviewsFitBtn').addEventListener('click', resetView);
   $('#reviewsScreenshotBtn').addEventListener('click', screenshot);
-  $('#reviewsDownloadBtn').addEventListener('click', downloadMp4);
+  $('#reviewsDownloadBtn').addEventListener('click', downloadVideo);
   $('#reviewsFullscreenBtn').addEventListener('click', toggleFullscreen);
   $('#reviewsHudBtn').addEventListener('click', toggleHud);
   $('#reviewsHudRestore').addEventListener('click', toggleHud);
@@ -1319,7 +1333,7 @@
     state.active.comments.push(comment); state.active.updatedAt = comment.createdAt;
     try {
       if (token) {
-        const author = isGuestReview() ? state.guestName || window.STUDIO_USER?.displayName || 'Invitado' : window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Equipo';
+        const author = isGuestReview() ? window.STUDIO_ROLE === 'review_guest' ? window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Google' : state.guestName || 'Invitado' : window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Equipo';
         await (await cloud()).addSharedComment(token, state.active.id, comment, author);
       } else await saveRecord(state.active);
       $('#reviewsCommentText').value = ''; state.draft = []; if (!state.sketchMode) { state.activeCommentId = comment.id; state.drawing = false; canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); }

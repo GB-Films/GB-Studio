@@ -97,12 +97,8 @@ service cloud.firestore {
             && request.resource.data.strokesJson is string && request.resource.data.strokesJson.size() <= 200000
             && request.resource.data.resolved is bool
             && (permission('reviewsEdit') || request.resource.data.resolved == false);
-          allow update: if permission('reviewsEdit') || (request.auth != null && activeShare(token)
-            && resource.data.authorUid == request.auth.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'strokesJson', 'resolved'])
-            && request.resource.data.text is string && request.resource.data.text.size() <= 5000
-            && request.resource.data.strokesJson is string && request.resource.data.strokesJson.size() <= 200000);
-          allow delete: if permission('reviewsEdit') || (request.auth != null && activeShare(token) && resource.data.authorUid == request.auth.uid);
+          // Review clients can add feedback, but cannot edit, resolve or delete anything.
+          allow update, delete: if permission('reviewsEdit');
         }
       }
     }
