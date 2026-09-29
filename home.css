@@ -29,8 +29,6 @@ html[data-studio-app="home"] .top-actions { margin-left:auto; }
 .studio-home-card-bottom .studio-home-version { display:inline-block; margin-left:8px; color:#ef714d; font:600 11px 'DM Mono',monospace; letter-spacing:0; vertical-align:baseline; }
 .studio-home-card-bottom>span { max-width:440px; color:#aaa; font-size:13px; line-height:1.5; }
 .studio-home-card-bottom small { margin-top:8px; color:#ef714d; font:600 10px 'DM Mono',monospace; letter-spacing:.8px; text-transform:uppercase; }
-.studio-home-card-reviews { border-color:#4c302b; background:#211917; }
-.studio-home-card-reviews .studio-home-card-art { border:1px solid #52352f; }
 .studio-home-card-compi { border-color:#444; background:#181818; }
 .studio-home-compi-art { border:1px solid #333; background:radial-gradient(circle at 50% 45%,#303030,#101010 70%); }
 .studio-home-compi-art img { width:min(57%,150px); max-height:82%; object-fit:contain; filter:drop-shadow(0 14px 18px rgba(0,0,0,.45)); }
