@@ -26,6 +26,7 @@ html[data-studio-app="home"] .top-actions { margin-left:auto; }
 .studio-home-timeline { position:absolute; right:12px; bottom:14px; left:12px; height:3px; background:linear-gradient(90deg,#ef714d 0 45%,#666 45%); }
 .studio-home-card-bottom { display:grid; gap:10px; padding:23px 25px 25px; }
 .studio-home-card-bottom strong { font:600 clamp(30px,3.4vw,46px)/1 'Space Grotesk',sans-serif; letter-spacing:-.055em; }
+.studio-home-card-bottom .studio-home-version { display:inline-block; margin-left:8px; color:#ef714d; font:600 11px 'DM Mono',monospace; letter-spacing:0; vertical-align:baseline; }
 .studio-home-card-bottom>span { max-width:440px; color:#aaa; font-size:13px; line-height:1.5; }
 .studio-home-card-bottom small { margin-top:8px; color:#ef714d; font:600 10px 'DM Mono',monospace; letter-spacing:.8px; text-transform:uppercase; }
 .studio-home-card-reviews { border-color:#4c302b; background:#211917; }
