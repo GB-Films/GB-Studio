@@ -959,7 +959,8 @@
       : $('#reviewsPersonStoryboardsRole').value === 'viewer' ? 'En Visto puede abrir y recorrer los proyectos, sin editarlos.' : 'Elegí qué puede hacer en Visto y Mira.';
   }
   function personPermissions() {
-    const permissions = { storyboards: $('#reviewsPersonStoryboardsRole').value === 'editor', storyboardsView: $('#reviewsPersonStoryboardsRole').value !== 'none', reviewsClient: false,
+    const permissions = { storyboards: $('#reviewsPersonStoryboardsRole').value === 'editor', storyboardsView: $('#reviewsPersonStoryboardsRole').value !== 'none',
+      pdr: $('#reviewsPersonPdrRole').value === 'editor', pdrView: $('#reviewsPersonPdrRole').value !== 'none', reviewsClient: false,
       reviewsView: false, reviewsCreate: false, reviewsEdit: false, reviewsShare: false };
     const role = $('#reviewsPersonReviewsRole').value;
     const selected = role === 'custom'
@@ -983,6 +984,7 @@
     $('#reviewsPersonEmail').readOnly = Boolean(person);
     $('#reviewsPersonActive').checked = person?.active !== false;
     $('#reviewsPersonStoryboardsRole').value = permissions.storyboards ? 'editor' : permissions.storyboardsView ? 'viewer' : 'none';
+    $('#reviewsPersonPdrRole').value = permissions.pdr ? 'editor' : permissions.pdrView ? 'viewer' : 'none';
     $('#reviewsPersonReviewsRole').value = reviewRoleFor(permissions);
     customPermissions(permissions);
     renderShareChoices(person?.reviewTokens || []);
@@ -1004,10 +1006,10 @@
     const role = document.createElement('span');
     const personPermissions = person.permissions || (person.pending ? {} : { storyboards: true, reviewsView: true, reviewsCreate: true, reviewsEdit: true, reviewsShare: true });
     const miraRole = reviewRoleFor(personPermissions);
-    role.textContent = owner ? 'Administrador' : person.pending ? 'Sin asignar' : miraRole !== 'none' ? reviewRoleLabels[miraRole] : personPermissions.storyboards ? 'Visto · acceso completo' : personPermissions.storyboardsView ? 'Visto · solo lectura' : 'Sin acceso';
+    role.textContent = owner ? 'Administrador' : person.pending ? 'Sin asignar' : miraRole !== 'none' ? reviewRoleLabels[miraRole] : personPermissions.pdr ? 'PDR · acceso completo' : personPermissions.pdrView ? 'PDR · solo lectura' : personPermissions.storyboards ? 'Visto · acceso completo' : personPermissions.storyboardsView ? 'Visto · solo lectura' : 'Sin acceso';
     const apps = document.createElement('span');
     const permissions = person.permissions || (person.pending ? {} : { storyboards: true, reviewsView: true });
-    apps.textContent = owner ? 'Visto · Mira' : [(permissions.storyboards || permissions.storyboardsView) && 'Visto', (permissions.reviewsView || permissions.reviewsClient) && 'Mira'].filter(Boolean).join(' · ') || 'Sin aplicaciones';
+    apps.textContent = owner ? 'Visto · PDR · Mira' : [(permissions.storyboards || permissions.storyboardsView) && 'Visto', (permissions.pdr || permissions.pdrView) && 'PDR', (permissions.reviewsView || permissions.reviewsClient) && 'Mira'].filter(Boolean).join(' · ') || 'Sin aplicaciones';
     const status = document.createElement('span'); status.className = `reviews-staff-state${person.pending ? ' is-pending' : person.active === false ? ' is-disabled' : ''}`; status.textContent = owner ? 'Activo' : personState(person);
     const arrow = document.createElement('span'); arrow.textContent = owner ? '' : '›'; arrow.setAttribute('aria-hidden', 'true');
     row.append(identity, role, apps, status, arrow);
@@ -1042,6 +1044,7 @@
   $('#reviewsStaffSearch').addEventListener('input', filterStaffList);
   $('#reviewsPersonReviewsRole').addEventListener('change', updatePersonRoleFields);
   $('#reviewsPersonStoryboardsRole').addEventListener('change', updatePersonRoleFields);
+  $('#reviewsPersonPdrRole').addEventListener('change', updatePersonRoleFields);
   $('#reviewsAddPerson').addEventListener('click', () => openPerson());
   $('#reviewsAdminBtn').addEventListener('click', async () => {
     if (window.STUDIO_ROLE !== 'admin') return;

@@ -7,7 +7,7 @@ const app = getApps().length ? getApp() : initializeApp(window.STORYBOARD_FIREBA
 const db = getFirestore(app);
 const auth = getAuth(app);
 const ADMIN_EMAIL = 'info@granbertafilms.com';
-export const PERMISSION_KEYS = ['storyboards', 'storyboardsView', 'reviewsClient', 'reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'];
+export const PERMISSION_KEYS = ['storyboards', 'storyboardsView', 'pdr', 'pdrView', 'reviewsClient', 'reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'];
 export const ALL_PERMISSIONS = { ...Object.fromEntries(PERMISSION_KEYS.map(key => [key, true])), reviewsClient: false };
 function normalizedPermissions(data) {
   if (!data || data.active === false) return null;
@@ -72,7 +72,8 @@ export async function saveStaff(email, permissions, name = '', options = {}) {
   if ((safe.reviewsCreate || safe.reviewsShare) && !safe.reviewsEdit) throw new Error('Para crear o compartir reviews, habilitá también Editar Reviews.');
   const reviewTokens = [...new Set((Array.isArray(options.reviewTokens) ? options.reviewTokens : []).filter(value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value)))];
   if (safe.storyboards) safe.storyboardsView = true;
-  const roles = { storyboards: safe.storyboards ? 'editor' : safe.storyboardsView ? 'viewer' : 'none', reviews: safe.reviewsClient ? 'client' : options.roles?.reviews || 'custom' };
+  if (safe.pdr) safe.pdrView = true;
+  const roles = { storyboards: safe.storyboards ? 'editor' : safe.storyboardsView ? 'viewer' : 'none', pdr: safe.pdr ? 'editor' : safe.pdrView ? 'viewer' : 'none', reviews: safe.reviewsClient ? 'client' : options.roles?.reviews || 'custom' };
   await setDoc(doc(db, 'reviewStaff', normalized), { name: name.trim().slice(0, 100), active, roles,
     permissions: safe, reviewTokens: safe.reviewsClient ? reviewTokens : [], updatedAt: new Date().toISOString(), updatedBy: auth.currentUser?.email || '' });
 }

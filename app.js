@@ -379,8 +379,8 @@ function loadProjects() {
 
 function isPdrApp() { return document.documentElement.dataset.studioApp === 'pdr'; }
 function isVistoApp() { return document.documentElement.dataset.studioApp === 'storyboards' || isPdrApp(); }
-function canEditVisto() { return window.STUDIO_PERMISSIONS?.storyboards === true; }
-function canViewVisto() { return canEditVisto() || window.STUDIO_PERMISSIONS?.storyboardsView === true; }
+function canEditVisto() { return isPdrApp() ? window.STUDIO_PERMISSIONS?.pdr === true : window.STUDIO_PERMISSIONS?.storyboards === true; }
+function canViewVisto() { return isPdrApp() ? canEditVisto() || window.STUDIO_PERMISSIONS?.pdrView === true : canEditVisto() || window.STUDIO_PERMISSIONS?.storyboardsView === true; }
 const cloudProjectTimers = new Map();
 const cloudProjectWrites = new Map();
 let cloudLoadGeneration = 0;
@@ -976,6 +976,9 @@ function showPdrDashboard() {
   $('#shootingPlanBtn').hidden = true;
   $('#exportBtn').hidden = true;
   $('#breadcrumbTitle').textContent = 'Plan de rodaje';
+  $('#storyboardsNav').classList.remove('is-active');
+  $('#pdrNav').classList.add('is-active');
+  $('#reviewsNav').classList.remove('is-active');
   renderPdrDashboard();
   return true;
 }
@@ -995,6 +998,9 @@ function showPdrEditor() {
   $('#shootingPlanBtn').hidden = true;
   $('#exportBtn').hidden = true;
   $('#breadcrumbTitle').textContent = project?.title || 'Plan de rodaje';
+  $('#storyboardsNav').classList.remove('is-active');
+  $('#pdrNav').classList.add('is-active');
+  $('#reviewsNav').classList.remove('is-active');
   renderPdrEditor();
   return true;
 }
@@ -2565,6 +2571,11 @@ $('#storyboardsNav').addEventListener('click', () => {
   if (isVistoApp()) showDashboard();
   else window.location.assign('?app=storyboards');
 });
+$('#pdrNav').addEventListener('click', () => {
+  if (!window.STUDIO_PERMISSIONS?.pdr && !window.STUDIO_PERMISSIONS?.pdrView) return;
+  if (isPdrApp()) showDashboard();
+  else window.location.assign('?app=pdr');
+});
 $('#backToDashboardBtn').addEventListener('click', showDashboard);
 $('#manageVersionsBtn').addEventListener('click', openVersionsModal);
 $('#createVersionBtn').addEventListener('click', openVersionModal);
@@ -2642,9 +2653,11 @@ document.addEventListener('keydown', event => {
 window.addEventListener('studio-auth-change', () => {
   const allowed = canViewVisto();
   const editor = canEditVisto();
+  const pdrAllowed = isPdrApp() ? allowed : window.STUDIO_PERMISSIONS?.pdr === true || window.STUDIO_PERMISSIONS?.pdrView === true;
   if (allowed) { vistoProjectsReady = false; vistoProjectsError = ''; }
   document.body.classList.toggle('visto-read-only', allowed && !editor);
   $('#storyboardsNav').hidden = !allowed;
+  $('#pdrNav').hidden = !pdrAllowed;
   $('#dashboardCreateBtn').hidden = !editor;
   $('#dashboardEmptyCreateBtn').hidden = !editor;
   $('#dashboardEmpty').querySelector('p').textContent = editor ? 'Creá tu primer storyboard para empezar a ordenar las tomas.' : 'Todavía no hay proyectos compartidos para ver.';

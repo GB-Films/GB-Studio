@@ -6,6 +6,7 @@ const profileAvatar = document.querySelector('#profileAvatar');
 const profileName = document.querySelector('#profileName');
 const profileEmail = document.querySelector('#profileEmail');
 const profileVistoRole = document.querySelector('#profileVistoRole');
+const profilePdrRole = document.querySelector('#profilePdrRole');
 const profileMiraRole = document.querySelector('#profileMiraRole');
 const profileModules = document.querySelector('#profileModules');
 const authGate = document.querySelector('#authGate');
@@ -27,6 +28,7 @@ for (const [id, app] of [['homeCompiLink', 'compi'], ['homePdrLink', 'pdr']]) {
 const firebaseConfig = window.STORYBOARD_FIREBASE_CONFIG;
 const publicReview = new URLSearchParams(location.hash.slice(1)).has('share') || new URLSearchParams(location.hash.slice(1)).has('review');
 const reviewsEntry = document.documentElement.dataset.studioApp === 'reviews';
+const pdrEntry = document.documentElement.dataset.studioApp === 'pdr';
 const homeEntry = document.documentElement.dataset.studioApp === 'home';
 
 function updateHomeModules(permissions = null) {
@@ -34,6 +36,7 @@ function updateHomeModules(permissions = null) {
   for (const [id, statusId, enabled, url] of [
     ['homeStoryboardsLink', 'homeStoryboardsStatus', visitor || permissions.storyboards === true || permissions.storyboardsView === true, '?app=storyboards'],
     ['homeReviewsLink', 'homeReviewsStatus', visitor || permissions.reviewsView === true || permissions.reviewsClient === true, '?app=reviews'],
+    ['homePdrLink', 'homePdrStatus', visitor || permissions.pdr === true || permissions.pdrView === true, '?app=pdr'],
   ]) {
     const link = document.getElementById(id);
     if (!link) continue;
@@ -41,7 +44,8 @@ function updateHomeModules(permissions = null) {
     else link.removeAttribute('href');
     link.classList.toggle('is-unavailable', !enabled);
     link.setAttribute('aria-disabled', String(!enabled));
-    document.getElementById(statusId).textContent = visitor ? 'Iniciá sesión para entrar →' : enabled ? 'Entrar a la herramienta →' : 'Sin acceso asignado';
+    const status = document.getElementById(statusId);
+    if (status) status.textContent = visitor ? 'Iniciá sesión para entrar →' : enabled ? 'Entrar a la herramienta →' : 'Sin acceso asignado';
   }
   const compiStatus = document.getElementById('homeCompiStatus');
   if (compiStatus) compiStatus.textContent = visitor ? 'Iniciá sesión para descargar ↓' : window.STUDIO_SIGNED_IN ? 'Descargar para Windows ↓' : 'Acceso pendiente';
@@ -93,6 +97,7 @@ function updateProfile(user, access = null, pending = false) {
   if (profileEmail) profileEmail.textContent = user.email || '';
   const permissions = access?.permissions || {};
   if (profileVistoRole) profileVistoRole.textContent = pending ? 'Pendiente' : permissions.storyboards ? 'Acceso completo' : permissions.storyboardsView ? 'Solo lectura' : 'Sin acceso';
+  if (profilePdrRole) profilePdrRole.textContent = pending ? 'Pendiente' : permissions.pdr ? 'Acceso completo' : permissions.pdrView ? 'Solo lectura' : 'Sin acceso';
   if (profileMiraRole) profileMiraRole.textContent = access?.role === 'review_guest' ? 'Invitado de review' : pending ? 'Pendiente' : permissions.reviewsClient ? 'Cliente' : permissions.reviewsView && permissions.reviewsCreate && permissions.reviewsEdit && permissions.reviewsShare ? 'Acceso completo' : permissions.reviewsView && permissions.reviewsEdit ? 'Edición' : permissions.reviewsView ? 'Solo lectura' : 'Sin acceso';
   if (profileAvatar) {
     profileAvatar.textContent = user.photoURL ? '' : name.trim().charAt(0).toUpperCase() || 'G';
@@ -102,6 +107,7 @@ function updateProfile(user, access = null, pending = false) {
     profileModules.replaceChildren();
     const enabled = [];
     if (access?.permissions?.storyboards || access?.permissions?.storyboardsView) enabled.push('Visto');
+    if (access?.permissions?.pdr || access?.permissions?.pdrView) enabled.push('PDR');
     if (access?.role === 'review_guest' || access?.permissions?.reviewsView || access?.permissions?.reviewsClient) enabled.push('Mira');
     if (enabled.length) {
       const list = document.createElement('div'); list.className = 'profile-module-list';
@@ -159,8 +165,12 @@ function renderSignedIn(user, access) {
   }
   updateProfile(user, access);
   updateHomeModules(access.permissions);
+  const canEnterPdr = access.permissions.pdr || access.permissions.pdrView;
   const canEnterReviews = access.permissions.reviewsView || access.permissions.reviewsClient;
-  if (!publicReview && reviewsEntry && !canEnterReviews) {
+  if (!publicReview && pdrEntry && !canEnterPdr) {
+    authGateButton.textContent = 'Cerrar sesión';
+    setAuthGate(true, 'No tenés acceso a PDR.', 'Pedile al administrador que habilite PDR para tu cuenta.');
+  } else if (!publicReview && reviewsEntry && !canEnterReviews) {
     authGateButton.textContent = 'Cerrar sesión';
     setAuthGate(true, 'No tenés acceso a Mira.', 'Pedile al administrador que habilite Mira para tu cuenta.');
   } else if (!publicReview && !reviewsEntry && !homeEntry && !access.permissions.storyboards && !access.permissions.storyboardsView) {
@@ -205,7 +215,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
     const [{ initializeApp }, { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut }, cloud] = await Promise.all([
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js'),
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js'),
-      import('./reviews-cloud.js?v=6'),
+      import('./reviews-cloud.js?v=7'),
     ]);
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -262,7 +272,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
     };
     homeAppHandler = async appName => {
       if (!await authorizedHomeUser()) return;
-      if (appName === 'pdr') { showAuthMessage('PDR todavía está en proceso.'); return; }
+      if (appName === 'pdr') { window.location.assign('?app=pdr'); return; }
       const link = document.createElement('a');
       link.href = 'downloads/Compi.zip';
       link.download = 'Compi v1.1.6.zip';

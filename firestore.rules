@@ -23,7 +23,7 @@ service cloud.firestore {
         && (!('active' in get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data)
           || get(/databases/$(database)/documents/reviewStaff/$(request.auth.token.email.lower())).data.active == true)
         // Client is exclusive even when an older record also contains broad Mira flags.
-        && (name in ['storyboards', 'storyboardsView', 'reviewsClient'] || !clientRole())
+        && (name in ['storyboards', 'storyboardsView', 'pdr', 'pdrView', 'reviewsClient'] || !clientRole())
         // Legacy records without explicit permissions keep Visto, never all of Mira.
         && ((name in ['storyboards', 'storyboardsView'] && !('permissions' in staffData()))
           || (name == 'reviewsClient' && clientRole())
@@ -46,11 +46,11 @@ service cloud.firestore {
 
     // Both Visto roles can see the shared library; only full access can change it.
     match /storyboardProjects/{projectId} {
-      allow read: if permission('storyboards') || permission('storyboardsView');
-      allow create, update, delete: if permission('storyboards');
+      allow read: if permission('storyboards') || permission('storyboardsView') || permission('pdr') || permission('pdrView');
+      allow create, update, delete: if permission('storyboards') || permission('pdr');
       match /chunks/{chunkId} {
-        allow read: if permission('storyboards') || permission('storyboardsView');
-        allow create, update, delete: if permission('storyboards');
+        allow read: if permission('storyboards') || permission('storyboardsView') || permission('pdr') || permission('pdrView');
+        allow create, update, delete: if permission('storyboards') || permission('pdr');
       }
     }
 
