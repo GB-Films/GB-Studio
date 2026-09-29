@@ -265,7 +265,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
       if (appName === 'pdr') { showAuthMessage('PDR todavía está en proceso.'); return; }
       const link = document.createElement('a');
       link.href = 'downloads/Compi.zip';
-      link.download = 'Compi v1.1.5.zip';
+      link.download = 'Compi v1.1.6.zip';
       document.body.append(link);
       link.click();
       link.remove();
