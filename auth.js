@@ -180,6 +180,10 @@ function renderSignedIn(user, access) {
     setAuthGate(false);
   }
   window.dispatchEvent(new Event('studio-auth-change'));
+  // PDR is a standalone entry point. Render it explicitly after the account
+  // check so it cannot remain on the initial hidden shell if another module
+  // consumed the auth event before its own route listener was ready.
+  if (!publicReview && pdrEntry && canEnterPdr) window.showDashboard?.();
   if (!publicReview && reviewsEntry && canEnterReviews) window.STUDIO_SHOW_REVIEWS?.();
 }
 
