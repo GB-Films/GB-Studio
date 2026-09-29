@@ -207,6 +207,13 @@ let currentProjectId = null;
 function blankPage(title = 'Página 1') { return { id: createId('page'), title, items: [] }; }
 function defaultProject() { return { version: 2, layoutEngine: 'grid', layoutEngineVersion: 1, title: 'Storyboard X', producer: DEFAULT_PRODUCER_NAME, producerBrandingConfigured: false, client: '', agency: '', director: '', date: new Date().toISOString().slice(0, 10), ratio: 'landscape', formatLocked: false, showProjectTitle: true, showProducerBranding: true, showClientMeta: false, showAgencyMeta: false, showDirectorMeta: false, showProjectFrame: true, showPageNumber: true, producerLogo: DEFAULT_PRODUCER_LOGO, producerLogoName: 'Logo GRAN BERTA FILMS', clientLogo: '', clientLogoName: '', background: '#ffffff', backgroundImage: '', backgroundImageName: '', backgroundPattern: 'none', backgroundPatternColor: '#c7c7c7', backgroundImageOpacity: 100, backgroundImageBlur: 0, frameTextColor: '#111111', descriptionTextColor: '', descriptionBoxColor: '#000000', padding: MIN_CANVAS_PADDING, gap: 16, defaultFit: 'contain', defaultFrame: 'original', defaultCropAspect: null, showDescriptions: true, infoPlacement: 'below', infoStyle: 'dark', assets: [], pages: [blankPage()] }; }
 
+const SHOOTING_PLAN_STATUSES = Object.freeze([
+  { value: 'pending', label: 'Pendiente' },
+  { value: 'confirmed', label: 'Confirmada' },
+  { value: 'shot', label: 'Filmada' }
+]);
+const SHOOTING_PLAN_STATUS_VALUES = new Set(SHOOTING_PLAN_STATUSES.map(status => status.value));
+
 const FRAME_ASPECTS = Object.freeze({ horizontal: 16 / 9, vertical: 9 / 16, square: 1 });
 const FRAME_MODES = new Set(['original', 'horizontal', 'vertical', 'square']);
 const FRAME_LABELS = Object.freeze({ original: 'Original', horizontal: 'Horizontal', vertical: 'Vertical', square: 'Cuadrada' });
@@ -318,7 +325,7 @@ function normalizeProject(data) {
       const cameraMoveMax = cameraMoveSpill ? 400 : 92;
       const cameraMoveX = Number(item.cameraMoveX);
       const cameraMoveY = Number(item.cameraMoveY);
-      return { ...item, ...frameFields(mode), shotType: item.shotType || 'PG', title: item.title || '', description: item.description || '', cameraMove: CAMERA_MOVE_VALUES.has(item.cameraMove) ? item.cameraMove : 'none', cameraMoveMode: 'overlay', cameraMoveX: clamp(Number.isFinite(cameraMoveX) ? cameraMoveX : 50, cameraMoveMin, cameraMoveMax), cameraMoveY: clamp(Number.isFinite(cameraMoveY) ? cameraMoveY : 50, cameraMoveMin, cameraMoveMax), cameraMoveScale: clamp(Number(item.cameraMoveScale) || 1, .45, 1.45), cameraMoveColor: validHexColor(item.cameraMoveColor, '#ff3b30'), cameraMoveSpill, drawingColor: validHexColor(item.drawingColor, validHexColor(item.cameraMoveColor, '#ff3b30')), drawingWidth: clamp(Number(item.drawingWidth) || 2.4, .8, 8), drawingStrokes: normalizeDrawingStrokes(item.drawingStrokes), slot: Number.isFinite(item.slot) ? item.slot : itemIndex };
+      return { ...item, ...frameFields(mode), shotType: item.shotType || 'PG', title: item.title || '', description: item.description || '', scene: typeof item.scene === 'string' ? item.scene : '', location: typeof item.location === 'string' ? item.location : '', shootingDay: typeof item.shootingDay === 'string' ? item.shootingDay : '', callTime: typeof item.callTime === 'string' ? item.callTime : '', status: SHOOTING_PLAN_STATUS_VALUES.has(item.status) ? item.status : 'pending', notes: typeof item.notes === 'string' ? item.notes : '', cameraMove: CAMERA_MOVE_VALUES.has(item.cameraMove) ? item.cameraMove : 'none', cameraMoveMode: 'overlay', cameraMoveX: clamp(Number.isFinite(cameraMoveX) ? cameraMoveX : 50, cameraMoveMin, cameraMoveMax), cameraMoveY: clamp(Number.isFinite(cameraMoveY) ? cameraMoveY : 50, cameraMoveMin, cameraMoveMax), cameraMoveScale: clamp(Number(item.cameraMoveScale) || 1, .45, 1.45), cameraMoveColor: validHexColor(item.cameraMoveColor, '#ff3b30'), cameraMoveSpill, drawingColor: validHexColor(item.drawingColor, validHexColor(item.cameraMoveColor, '#ff3b30')), drawingWidth: clamp(Number(item.drawingWidth) || 2.4, .8, 8), drawingStrokes: normalizeDrawingStrokes(item.drawingStrokes), slot: Number.isFinite(item.slot) ? item.slot : itemIndex };
     }) : [] };
     if (data.layoutEngine !== 'adaptive') migratedPage.items.forEach(item => {
       if (item.fit === 'cover' && !item.cropAspect) item.cropAspect = legacyCropAspect(page, data);
@@ -829,6 +836,75 @@ function confirmDeleteVersion() {
   showToast(`Versión ${entry.versionName || projectFormatLabel(entry.ratio)} eliminada`);
 }
 
+function shootingPlanShots() {
+  if (!project) return [];
+  return project.pages.flatMap((page, pageIndex) => page.items.map((item, itemIndex) => ({ page, pageIndex, item, itemIndex, asset: findAsset(item.assetId) })));
+}
+
+function shootingPlanStatusLabel(value) {
+  return SHOOTING_PLAN_STATUSES.find(status => status.value === value)?.label || 'Pendiente';
+}
+
+function renderShootingPlan() {
+  const body = $('#shootingPlanTableBody');
+  const empty = $('#shootingPlanEmpty');
+  const summary = $('#shootingPlanSummary');
+  if (!body || !empty || !summary || !project) return;
+  const shots = shootingPlanShots();
+  const pagesWithShots = new Set(shots.map(shot => shot.pageIndex)).size;
+  const confirmed = shots.filter(shot => shot.item.status === 'confirmed').length;
+  const filmed = shots.filter(shot => shot.item.status === 'shot').length;
+  summary.innerHTML = `<strong>${shots.length} ${shots.length === 1 ? 'toma' : 'tomas'}</strong><span>${pagesWithShots} ${pagesWithShots === 1 ? 'página' : 'páginas'}</span><span>${confirmed} confirmadas</span><span>${filmed} filmadas</span>`;
+  empty.hidden = shots.length > 0;
+  body.innerHTML = shots.map((shot, index) => {
+    const { item, pageIndex, asset } = shot;
+    const number = String(index + 1).padStart(2, '0');
+    const title = item.title || asset?.name || `Foto ${index + 1}`;
+    const statusOptions = SHOOTING_PLAN_STATUSES.map(status => `<option value="${status.value}"${item.status === status.value ? ' selected' : ''}>${status.label}</option>`).join('');
+    return `<tr data-shooting-plan-row data-page-index="${pageIndex}" data-item-id="${escapeHtml(item.id)}"><td class="plan-index">${number}</td><td class="plan-page">${String(pageIndex + 1).padStart(2, '0')}</td><td class="plan-shot-cell"><strong>${escapeHtml(item.shotType || 'PG')}</strong><input class="plan-input plan-title-input" data-shooting-field="title" value="${escapeHtml(title)}" placeholder="Título de la toma" /></td><td><input class="plan-input" data-shooting-field="location" value="${escapeHtml(item.location)}" placeholder="Locación" /></td><td><input class="plan-input" data-shooting-field="shootingDay" value="${escapeHtml(item.shootingDay)}" placeholder="Día 1" /></td><td><input class="plan-input" data-shooting-field="callTime" value="${escapeHtml(item.callTime)}" placeholder="08:00" /></td><td><select class="plan-input plan-status-input" data-shooting-field="status">${statusOptions}</select></td><td><input class="plan-input" data-shooting-field="notes" value="${escapeHtml(item.notes)}" placeholder="Notas de producción" /></td></tr>`;
+  }).join('');
+}
+
+function openShootingPlan() {
+  if (!project) return;
+  renderShootingPlan();
+  $('#shootingPlanModal').hidden = false;
+}
+
+function closeShootingPlan() { $('#shootingPlanModal').hidden = true; }
+
+function updateShootingPlanField(event) {
+  const input = event.target.closest('[data-shooting-field]');
+  const row = input?.closest('[data-shooting-plan-row]');
+  if (!input || !row || !project) return;
+  const page = project.pages[Number(row.dataset.pageIndex)];
+  const item = page?.items.find(candidate => candidate.id === row.dataset.itemId);
+  if (!item) return;
+  const field = input.dataset.shootingField;
+  if (!['title', 'location', 'shootingDay', 'callTime', 'notes'].includes(field) && field !== 'status') return;
+  item[field] = field === 'status' && !SHOOTING_PLAN_STATUS_VALUES.has(input.value) ? 'pending' : input.value;
+  saveProject();
+  if (field === 'title') {
+    const selected = findItem(selectedItemId);
+    if (selected?.id === item.id) $('#photoTitle').value = item.title;
+  }
+  if (field === 'status') renderShootingPlan();
+}
+
+function csvCell(value) { return `"${String(value ?? '').replace(/"/g, '""')}"`; }
+
+function exportShootingPlanCsv() {
+  if (!project) return;
+  const rows = [['Nº', 'Página', 'Toma', 'Título', 'Descripción', 'Locación', 'Jornada', 'Horario', 'Estado', 'Notas']];
+  shootingPlanShots().forEach((shot, index) => {
+    const { item, pageIndex, asset } = shot;
+    rows.push([index + 1, pageIndex + 1, item.shotType || 'PG', item.title || asset?.name || '', item.description || '', item.location, item.shootingDay, item.callTime, shootingPlanStatusLabel(item.status), item.notes]);
+  });
+  const csv = '\ufeff' + rows.map(row => row.map(csvCell).join(';')).join('\r\n');
+  downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `${exportProjectSlug()}_plan_rodaje.csv`);
+  showToast('Plan de rodaje exportado');
+}
+
 function showDashboard() {
   if (!canViewVisto()) return false;
   project = null;
@@ -849,7 +925,9 @@ function showDashboard() {
   $('#backToDashboardBtn').hidden = true;
   $('#manageVersionsBtn').hidden = true;
   $('#createVersionBtn').hidden = true;
+  $('#shootingPlanBtn').hidden = true;
   $('#exportBtn').hidden = true;
+  closeShootingPlan();
   $('#breadcrumbTitle').textContent = 'Todos los proyectos';
   renderDashboard();
   return true;
@@ -869,6 +947,7 @@ function showEditor() {
   $('#backToDashboardBtn').hidden = false;
   $('#manageVersionsBtn').hidden = false;
   $('#createVersionBtn').hidden = !canEditVisto();
+  $('#shootingPlanBtn').hidden = !canEditVisto();
   $('#exportBtn').hidden = !canEditVisto();
   $('#breadcrumbTitle').textContent = project?.title || 'Sin título';
   if (canEditVisto()) queueMicrotask(optimizeCurrentBackgroundImage);
@@ -2389,9 +2468,16 @@ $('#storyboardsNav').addEventListener('click', () => {
 $('#backToDashboardBtn').addEventListener('click', showDashboard);
 $('#manageVersionsBtn').addEventListener('click', openVersionsModal);
 $('#createVersionBtn').addEventListener('click', openVersionModal);
+$('#shootingPlanBtn').addEventListener('click', openShootingPlan);
 $('#exportBtn').addEventListener('click', openExport);
 $$('[data-close-modal]').forEach(button => button.addEventListener('click', closeExport));
 $('#exportModal').addEventListener('click', event => { if (event.target === $('#exportModal')) closeExport(); });
+$('#closeShootingPlanBtn').addEventListener('click', closeShootingPlan);
+$('#closeShootingPlanSecondaryBtn').addEventListener('click', closeShootingPlan);
+$('#shootingPlanModal').addEventListener('click', event => { if (event.target === $('#shootingPlanModal')) closeShootingPlan(); });
+$('#shootingPlanTableBody').addEventListener('input', updateShootingPlanField);
+$('#shootingPlanTableBody').addEventListener('change', updateShootingPlanField);
+$('#exportShootingPlanBtn').addEventListener('click', exportShootingPlanCsv);
 $$('[data-project-format]').forEach(button => button.addEventListener('click', () => selectProjectFormat(button.dataset.projectFormat)));
 $$('[data-version-format]').forEach(button => button.addEventListener('click', () => createProjectVersion(button.dataset.versionFormat)));
 $('#cancelVersionBtn').addEventListener('click', closeVersionModal);
@@ -2438,7 +2524,7 @@ document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && !editing && project && !$('#editorView').hidden) { event.preventDefault(); selectAllCurrentPage(); }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !editing) { event.preventDefault(); restoreLastUndo(); }
   if (event.key === 'Delete' && !editing) { if (selectedItems().length) deleteSelected(); else if (project && !$('#editorView').hidden) deleteCurrentPage(); }
-  if (event.key === 'Escape') { closeExport(); closeVersionModal(); closeNewProjectConfirm(); closeDeletePageConfirm(); closeClearPageConfirm(); closeClearLibraryConfirm(); closeDeleteProjectModal(); closePageMenus(); }
+  if (event.key === 'Escape') { closeExport(); closeShootingPlan(); closeVersionModal(); closeNewProjectConfirm(); closeDeletePageConfirm(); closeClearPageConfirm(); closeClearLibraryConfirm(); closeDeleteProjectModal(); closePageMenus(); }
 });
 
 window.addEventListener('studio-auth-change', () => {
