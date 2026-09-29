@@ -28,7 +28,7 @@
     </script>
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
-    <link rel="stylesheet" href="styles.css?v=56" />
+    <link rel="stylesheet" href="styles.css?v=57" />
     <link rel="stylesheet" href="reviews.css?v=19" />
     <link rel="stylesheet" href="home.css?v=8" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
@@ -210,6 +210,21 @@
       </main>
     </div>
 
+    <main class="pdr-view" id="pdrView" hidden>
+      <section class="pdr-shell" id="pdrDashboard">
+        <header class="pdr-app-header"><div><span class="pdr-kicker">GB STUDIO / PRODUCCIÓN</span><h1>Plan de rodaje</h1><p>Organizá las tomas, las jornadas y la información práctica de cada proyecto.</p></div><div class="pdr-header-actions"><a class="button button-ghost" href="./">← Inicio</a><button class="button button-primary" id="pdrNewProjectBtn" type="button">＋ Nuevo plan</button></div></header>
+        <div class="pdr-project-heading"><span>PROYECTOS DE RODAJE</span><small id="pdrProjectCount">0 proyectos</small></div>
+        <div class="pdr-project-grid" id="pdrProjectList"></div>
+        <div class="pdr-empty" id="pdrDashboardEmpty" hidden><strong>Todavía no hay planes de rodaje</strong><p>Creá un plan o abrí un proyecto existente de Visto.</p><button class="button button-primary" id="pdrEmptyCreateBtn" type="button">＋ Crear plan</button></div>
+      </section>
+      <section class="pdr-shell pdr-editor-shell" id="pdrEditor" hidden>
+        <header class="pdr-editor-header"><div><button class="pdr-back-button" id="pdrBackProjectsBtn" type="button">← Planes de rodaje</button><span class="pdr-kicker">PLAN DE RODAJE</span><h1 id="pdrEditorTitle">Sin título</h1><p id="pdrEditorMeta"></p></div><div class="pdr-editor-actions"><button class="button button-secondary" id="pdrAddPhotosBtn" type="button">＋ Cargar fotos</button><button class="button button-primary" id="pdrCloseEditorBtn" type="button">Guardar y salir</button><input id="pdrFileInput" type="file" accept="image/*" multiple hidden /></div></header>
+        <div class="pdr-controls"><div><span class="pdr-control-label">FORMATO DEL PLAN</span><div class="pdr-segmented" role="group" aria-label="Formato del plan de rodaje"><button type="button" data-pdr-ratio="landscape">Horizontal</button><button type="button" data-pdr-ratio="portrait">Vertical</button></div></div><label><span class="pdr-control-label">PÁGINA DE CARGA</span><select class="pdr-select" id="pdrPageSelect" aria-label="Página donde se cargarán las fotos"></select></label><div class="pdr-live-summary" id="pdrLiveSummary"></div></div>
+        <section class="pdr-board-section"><div class="pdr-section-heading"><div><span class="pdr-kicker">REFERENCIA VISUAL</span><h2>Fotos de esta página</h2></div><span class="pdr-page-note" id="pdrPageNote"></span></div><div class="pdr-shot-grid" id="pdrShotGrid"></div><div class="pdr-empty pdr-inline-empty" id="pdrShotEmpty" hidden><strong>No hay fotos en esta página</strong><p>Cargá fotos para empezar a armar la jornada.</p><button class="button button-secondary" id="pdrEmptyUploadBtn" type="button">＋ Cargar fotos</button></div></section>
+        <section class="pdr-table-section"><div class="pdr-section-heading"><div><span class="pdr-kicker">ORGANIZACIÓN DE RODAJE</span><h2>Detalle de tomas</h2></div><span class="pdr-page-note">Los cambios se guardan automáticamente</span></div><div class="pdr-table-wrap"><table class="pdr-table"><thead><tr><th>#</th><th>PÁG.</th><th>TOMA / TÍTULO</th><th>LOCACIÓN</th><th>JORNADA</th><th>HORARIO</th><th>ESTADO</th><th>NOTAS</th></tr></thead><tbody id="pdrPlanBody"></tbody></table><div class="pdr-empty pdr-inline-empty" id="pdrPlanEmpty" hidden><strong>El plan todavía no tiene tomas</strong><p>Cargá una o más fotos para crear las primeras filas.</p></div></div></section>
+      </section>
+    </main>
+
     <div class="modal-backdrop reviews-modal-backdrop" id="reviewsFormModal" hidden>
       <form class="modal reviews-form-modal" id="reviewsEntityForm" role="dialog" aria-modal="true" aria-labelledby="reviewsFormTitle">
         <button class="modal-close" id="reviewsFormClose" type="button" aria-label="Cerrar">×</button><span class="confirm-modal-mark">＋</span>
@@ -275,7 +290,7 @@
     <div class="modal-backdrop shooting-plan-backdrop" id="shootingPlanModal" hidden><div class="modal shooting-plan-modal" role="dialog" aria-modal="true" aria-labelledby="shootingPlanTitle"><button class="modal-close" id="closeShootingPlanBtn" type="button" aria-label="Cerrar">×</button><div class="eyebrow"><span class="eyebrow-line"></span> PRODUCCIÓN</div><h2 id="shootingPlanTitle">Plan de rodaje</h2><p class="modal-copy">Ordená la información operativa de cada toma. Los cambios se guardan dentro del proyecto y siguen vinculados al storyboard.</p><div class="shooting-plan-toolbar"><div class="shooting-plan-summary" id="shootingPlanSummary"></div><div class="shooting-plan-actions"><button class="button button-secondary" id="exportShootingPlanBtn" type="button">↓ Exportar CSV</button><button class="button button-primary" id="closeShootingPlanSecondaryBtn" type="button">Listo</button></div></div><div class="shooting-plan-table-wrap"><table class="shooting-plan-table"><thead><tr><th>#</th><th>PÁGINA</th><th>TOMA / TÍTULO</th><th>LOCACIÓN</th><th>JORNADA</th><th>HORARIO</th><th>ESTADO</th><th>NOTAS</th></tr></thead><tbody id="shootingPlanTableBody"></tbody></table><div class="shooting-plan-empty" id="shootingPlanEmpty" hidden>No hay tomas cargadas todavía. Sumá fotos al storyboard para empezar a armar el plan.</div></div></div></div>
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
-    <script src="app.js?v=73"></script>
+    <script src="app.js?v=74"></script>
     <script src="reviews.js?v=28"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>

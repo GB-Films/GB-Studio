@@ -205,7 +205,7 @@ let projects = [];
 let currentProjectId = null;
 
 function blankPage(title = 'Página 1') { return { id: createId('page'), title, items: [] }; }
-function defaultProject() { return { version: 2, layoutEngine: 'grid', layoutEngineVersion: 1, title: 'Storyboard X', producer: DEFAULT_PRODUCER_NAME, producerBrandingConfigured: false, client: '', agency: '', director: '', date: new Date().toISOString().slice(0, 10), ratio: 'landscape', formatLocked: false, showProjectTitle: true, showProducerBranding: true, showClientMeta: false, showAgencyMeta: false, showDirectorMeta: false, showProjectFrame: true, showPageNumber: true, producerLogo: DEFAULT_PRODUCER_LOGO, producerLogoName: 'Logo GRAN BERTA FILMS', clientLogo: '', clientLogoName: '', background: '#ffffff', backgroundImage: '', backgroundImageName: '', backgroundPattern: 'none', backgroundPatternColor: '#c7c7c7', backgroundImageOpacity: 100, backgroundImageBlur: 0, frameTextColor: '#111111', descriptionTextColor: '', descriptionBoxColor: '#000000', padding: MIN_CANVAS_PADDING, gap: 16, defaultFit: 'contain', defaultFrame: 'original', defaultCropAspect: null, showDescriptions: true, infoPlacement: 'below', infoStyle: 'dark', assets: [], pages: [blankPage()] }; }
+function defaultProject() { return { version: 2, layoutEngine: 'grid', layoutEngineVersion: 1, title: 'Storyboard X', producer: DEFAULT_PRODUCER_NAME, producerBrandingConfigured: false, client: '', agency: '', director: '', date: new Date().toISOString().slice(0, 10), ratio: 'landscape', pdrRatio: 'landscape', formatLocked: false, showProjectTitle: true, showProducerBranding: true, showClientMeta: false, showAgencyMeta: false, showDirectorMeta: false, showProjectFrame: true, showPageNumber: true, producerLogo: DEFAULT_PRODUCER_LOGO, producerLogoName: 'Logo GRAN BERTA FILMS', clientLogo: '', clientLogoName: '', background: '#ffffff', backgroundImage: '', backgroundImageName: '', backgroundPattern: 'none', backgroundPatternColor: '#c7c7c7', backgroundImageOpacity: 100, backgroundImageBlur: 0, frameTextColor: '#111111', descriptionTextColor: '', descriptionBoxColor: '#000000', padding: MIN_CANVAS_PADDING, gap: 16, defaultFit: 'contain', defaultFrame: 'original', defaultCropAspect: null, showDescriptions: true, infoPlacement: 'below', infoStyle: 'dark', assets: [], pages: [blankPage()] }; }
 
 const SHOOTING_PLAN_STATUSES = Object.freeze([
   { value: 'pending', label: 'Pendiente' },
@@ -280,6 +280,7 @@ function normalizeProject(data) {
   normalized.client = typeof data.client === 'string' ? data.client : '';
   normalized.agency = typeof data.agency === 'string' ? data.agency : '';
   normalized.director = typeof data.director === 'string' ? data.director : '';
+  normalized.pdrRatio = data.pdrRatio === 'portrait' || (!data.pdrRatio && data.ratio === 'portrait') ? 'portrait' : 'landscape';
   if (normalized.title === 'Mi nuevo video') normalized.title = 'Storyboard X';
   const migrateOldCropDefault = data.version !== 2;
   normalized.version = 2;
@@ -907,7 +908,99 @@ function exportShootingPlanCsv() {
   showToast('Plan de rodaje exportado');
 }
 
+function pdrPlanRowMarkup(shot, index) {
+  const { item, pageIndex, asset } = shot;
+  const number = String(index + 1).padStart(2, '0');
+  const title = item.title || asset?.name || `Foto ${index + 1}`;
+  const statusOptions = SHOOTING_PLAN_STATUSES.map(status => `<option value="${status.value}"${item.status === status.value ? ' selected' : ''}>${status.label}</option>`).join('');
+  return `<tr data-shooting-plan-row data-page-index="${pageIndex}" data-item-id="${escapeHtml(item.id)}"><td class="pdr-index">${number}</td><td class="pdr-page-number">${String(pageIndex + 1).padStart(2, '0')}</td><td class="pdr-shot-cell"><strong>${escapeHtml(item.shotType || 'PG')}</strong><input class="pdr-input pdr-title-input" data-shooting-field="title" value="${escapeHtml(title)}" placeholder="Título de la toma" /></td><td><input class="pdr-input" data-shooting-field="location" value="${escapeHtml(item.location)}" placeholder="Locación" /></td><td><input class="pdr-input" data-shooting-field="shootingDay" value="${escapeHtml(item.shootingDay)}" placeholder="Día 1" /></td><td><input class="pdr-input" data-shooting-field="callTime" value="${escapeHtml(item.callTime)}" placeholder="08:00" /></td><td><select class="pdr-input pdr-status-input" data-shooting-field="status">${statusOptions}</select></td><td><input class="pdr-input" data-shooting-field="notes" value="${escapeHtml(item.notes)}" placeholder="Notas de producción" /></td></tr>`;
+}
+
+function renderPdrDashboard() {
+  const list = $('#pdrProjectList');
+  const empty = $('#pdrDashboardEmpty');
+  const count = $('#pdrProjectCount');
+  if (!list || !empty || !count) return;
+  const groups = projectGroups();
+  count.textContent = `${groups.length} ${groups.length === 1 ? 'proyecto' : 'proyectos'}`;
+  empty.hidden = groups.length > 0;
+  list.innerHTML = groups.map((group, index) => {
+    const entry = group.base;
+    const shots = entry.pages.reduce((total, page) => total + page.items.length, 0);
+    const ratio = entry.pdrRatio === 'portrait' ? 'Vertical' : 'Horizontal';
+    return `<button class="pdr-project-card" type="button" data-pdr-project="${escapeHtml(entry.id)}"><span class="pdr-project-number">${String(index + 1).padStart(2, '0')}</span><span class="pdr-project-card-copy"><strong>${escapeHtml(entry.title || 'Sin título')}</strong><small>${escapeHtml(entry.client || 'Sin cliente')} · ${shots} ${shots === 1 ? 'toma' : 'tomas'} · ${ratio}</small></span><span class="pdr-project-arrow">→</span></button>`;
+  }).join('');
+}
+
+function renderPdrEditor() {
+  if (!project) return;
+  const page = currentPage();
+  const shots = shootingPlanShots();
+  const pageItems = page?.items || [];
+  const ratio = project.pdrRatio === 'portrait' ? 'portrait' : 'landscape';
+  $('#pdrEditorTitle').textContent = project.title || 'Sin título';
+  $('#pdrEditorMeta').textContent = [project.client, project.agency, project.director].filter(Boolean).join(' · ') || 'Plan sin datos adicionales';
+  $('#pdrLiveSummary').textContent = `${shots.length} ${shots.length === 1 ? 'toma' : 'tomas'} · ${project.pages.length} ${project.pages.length === 1 ? 'página' : 'páginas'}`;
+  $$('#pdrEditor [data-pdr-ratio]').forEach(button => button.classList.toggle('is-active', button.dataset.pdrRatio === ratio));
+  const pageSelect = $('#pdrPageSelect');
+  pageSelect.innerHTML = project.pages.map((candidate, index) => `<option value="${index}">Página ${index + 1}${candidate.items.length ? ` · ${candidate.items.length} fotos` : ''}</option>`).join('');
+  pageSelect.value = String(currentPageIndex);
+  $('#pdrPageNote').textContent = `Página ${currentPageIndex + 1} · ${pageItems.length} ${pageItems.length === 1 ? 'foto' : 'fotos'}`;
+  $('#pdrShotEmpty').hidden = pageItems.length > 0;
+  $('#pdrShotGrid').className = `pdr-shot-grid is-${ratio}`;
+  $('#pdrShotGrid').innerHTML = pageItems.map((item, index) => {
+    const asset = findAsset(item.assetId);
+    if (!asset) return '';
+    const title = item.title || asset.name || `Foto ${index + 1}`;
+    return `<article class="pdr-shot-card"><div class="pdr-shot-image"><img src="${asset.image}" alt="${escapeHtml(title)}" /><span>${String(index + 1).padStart(2, '0')}</span></div><div class="pdr-shot-copy"><strong>${escapeHtml(item.shotType || 'PG')} · ${escapeHtml(title)}</strong><small>${escapeHtml(item.description || 'Sin descripción')}</small></div></article>`;
+  }).join('');
+  $('#pdrPlanEmpty').hidden = shots.length > 0;
+  $('#pdrPlanBody').innerHTML = shots.map(pdrPlanRowMarkup).join('');
+}
+
+function showPdrDashboard() {
+  if (!canViewVisto()) return false;
+  if (project) saveProject();
+  project = null;
+  currentProjectId = null;
+  $('#dashboardView').hidden = true;
+  $('#editorView').hidden = true;
+  $('#reviewsView').hidden = true;
+  $('#reviewsHome').hidden = true;
+  $('#pdrView').hidden = false;
+  $('#pdrDashboard').hidden = false;
+  $('#pdrEditor').hidden = true;
+  $('#backToDashboardBtn').hidden = true;
+  $('#manageVersionsBtn').hidden = true;
+  $('#createVersionBtn').hidden = true;
+  $('#shootingPlanBtn').hidden = true;
+  $('#exportBtn').hidden = true;
+  $('#breadcrumbTitle').textContent = 'Plan de rodaje';
+  renderPdrDashboard();
+  return true;
+}
+
+function showPdrEditor() {
+  if (!canViewVisto()) return false;
+  $('#dashboardView').hidden = true;
+  $('#editorView').hidden = true;
+  $('#reviewsView').hidden = true;
+  $('#reviewsHome').hidden = true;
+  $('#pdrView').hidden = false;
+  $('#pdrDashboard').hidden = true;
+  $('#pdrEditor').hidden = false;
+  $('#backToDashboardBtn').hidden = true;
+  $('#manageVersionsBtn').hidden = true;
+  $('#createVersionBtn').hidden = true;
+  $('#shootingPlanBtn').hidden = true;
+  $('#exportBtn').hidden = true;
+  $('#breadcrumbTitle').textContent = project?.title || 'Plan de rodaje';
+  renderPdrEditor();
+  return true;
+}
+
 function showDashboard() {
+  if (isPdrApp()) return showPdrDashboard();
   if (!canViewVisto()) return false;
   project = null;
   lastUndoState = null;
@@ -936,6 +1029,7 @@ function showDashboard() {
 }
 
 function showEditor() {
+  if (isPdrApp()) return showPdrEditor();
   if (!canViewVisto()) return false;
   $('#dashboardView').hidden = true;
   $('#editorView').hidden = false;
@@ -1431,7 +1525,10 @@ function renderInspector() {
   renderFrameButtons('.fit-btn', ['original', ...Object.keys(FRAME_ASPECTS)], currentFrame);
 }
 
-function render() { renderControls(); renderLibrary(); renderPage(); renderInspector(); }
+function render() {
+  if (isPdrApp()) { if (project) renderPdrEditor(); else renderPdrDashboard(); return; }
+  renderControls(); renderLibrary(); renderPage(); renderInspector();
+}
 
 function previewArtboardBackgroundSettings() {
   [$('#canvasPage'), ...$$('.page-thumb-canvas:not(.page-thumb-add-canvas)')].forEach(applyArtboardBackground);
@@ -2287,8 +2384,8 @@ function closeExport() { $('#exportModal').hidden = true; }
 function openFormatModal() {
   const isNew = pendingNewProject;
   $('#newProjectFields').hidden = !isNew;
-  $('#formatTitle').textContent = isNew ? 'Completá los datos del proyecto' : 'Elegí el formato del canvas';
-  $('#formatCopy').textContent = isNew ? 'Antes de elegir el formato, completá el título y el cliente. Los demás datos son opcionales.' : 'El formato queda fijo para todo este proyecto. Si necesitás otro, creá una versión desde el editor.';
+  $('#formatTitle').textContent = isNew ? (isPdrApp() ? 'Completá los datos del plan' : 'Completá los datos del proyecto') : 'Elegí el formato del canvas';
+  $('#formatCopy').textContent = isNew ? `Antes de elegir el formato, completá el título y el cliente. Los demás datos son opcionales.` : 'El formato queda fijo para todo este proyecto. Si necesitás otro, creá una versión desde el editor.';
   $('#formatChoiceHeading').hidden = !isNew;
   if (!isNew && project) $$('#newProjectFields .text-field').forEach(input => { input.value = ({ newProjectTitle: project.title, newProjectClient: project.client, newProjectAgency: project.agency, newProjectProducer: project.producer, newProjectDirector: project.director }[input.id] || ''); });
   $('#formatModal').hidden = false;
@@ -2346,7 +2443,7 @@ function selectProjectFormat(format) {
       (!title ? fields.title : fields.client).focus();
       return;
     }
-    project = normalizeProject({ ...defaultProject(), title, client, agency: fields.agency.value.trim(), producer: DEFAULT_PRODUCER_NAME, author: DEFAULT_PRODUCER_NAME, director: fields.director.value.trim(), ratio: format, formatLocked: true, versionName: 'Base' });
+    project = normalizeProject({ ...defaultProject(), title, client, agency: fields.agency.value.trim(), producer: DEFAULT_PRODUCER_NAME, author: DEFAULT_PRODUCER_NAME, director: fields.director.value.trim(), ratio: format, pdrRatio: format === 'portrait' ? 'portrait' : 'landscape', formatLocked: true, versionName: 'Base' });
     project.versionGroupId = project.id;
     pendingNewProject = false;
     currentProjectId = project.id;
@@ -2357,7 +2454,7 @@ function selectProjectFormat(format) {
     showEditor();
     render();
     saveProject();
-    showToast('Proyecto creado');
+    showToast(isPdrApp() ? 'Plan de rodaje creado' : 'Proyecto creado');
     return;
   }
   if (!project) return;
@@ -2481,6 +2578,18 @@ $('#shootingPlanModal').addEventListener('click', event => { if (event.target ==
 $('#shootingPlanTableBody').addEventListener('input', updateShootingPlanField);
 $('#shootingPlanTableBody').addEventListener('change', updateShootingPlanField);
 $('#exportShootingPlanBtn').addEventListener('click', exportShootingPlanCsv);
+$('#pdrNewProjectBtn').addEventListener('click', resetProject);
+$('#pdrEmptyCreateBtn').addEventListener('click', resetProject);
+$('#pdrProjectList').addEventListener('click', event => { const button = event.target.closest('[data-pdr-project]'); if (button) openProject(button.dataset.pdrProject); });
+$('#pdrBackProjectsBtn').addEventListener('click', showDashboard);
+$('#pdrCloseEditorBtn').addEventListener('click', showDashboard);
+$('#pdrAddPhotosBtn').addEventListener('click', () => $('#pdrFileInput').click());
+$('#pdrEmptyUploadBtn').addEventListener('click', () => $('#pdrFileInput').click());
+$('#pdrFileInput').addEventListener('change', event => { const files = event.target.files; event.target.value = ''; if (files?.length && project) handleFiles(files, currentPage().items.length); });
+$('#pdrPageSelect').addEventListener('change', event => { currentPageIndex = clamp(Number(event.target.value) || 0, 0, project.pages.length - 1); render(); });
+$$('[data-pdr-ratio]').forEach(button => button.addEventListener('click', () => { if (!project || !canEditVisto()) return; project.pdrRatio = button.dataset.pdrRatio === 'portrait' ? 'portrait' : 'landscape'; render(); saveProject(); }));
+$('#pdrPlanBody').addEventListener('input', updateShootingPlanField);
+$('#pdrPlanBody').addEventListener('change', updateShootingPlanField);
 $$('[data-project-format]').forEach(button => button.addEventListener('click', () => selectProjectFormat(button.dataset.projectFormat)));
 $$('[data-version-format]').forEach(button => button.addEventListener('click', () => createProjectVersion(button.dataset.versionFormat)));
 $('#cancelVersionBtn').addEventListener('click', closeVersionModal);
