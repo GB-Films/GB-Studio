@@ -2567,8 +2567,8 @@ $('#deletePhotoBtn').addEventListener('click', deleteSelected); $('#duplicatePho
 $('#dashboardCreateBtn').addEventListener('click', resetProject);
 $('#dashboardEmptyCreateBtn').addEventListener('click', resetProject);
 $('#storyboardsNav').addEventListener('click', () => {
-  if (!canViewVisto()) return;
-  if (isVistoApp()) showDashboard();
+  if (!window.STUDIO_PERMISSIONS?.storyboards && !window.STUDIO_PERMISSIONS?.storyboardsView) return;
+  if (document.documentElement.dataset.studioApp === 'storyboards') showDashboard();
   else window.location.assign('?app=storyboards');
 });
 $('#pdrNav').addEventListener('click', () => {
@@ -2653,10 +2653,11 @@ document.addEventListener('keydown', event => {
 window.addEventListener('studio-auth-change', () => {
   const allowed = canViewVisto();
   const editor = canEditVisto();
-  const pdrAllowed = isPdrApp() ? allowed : window.STUDIO_PERMISSIONS?.pdr === true || window.STUDIO_PERMISSIONS?.pdrView === true;
+  const pdrAllowed = window.STUDIO_PERMISSIONS?.pdr === true || window.STUDIO_PERMISSIONS?.pdrView === true;
+  const storyboardsAllowed = window.STUDIO_PERMISSIONS?.storyboards === true || window.STUDIO_PERMISSIONS?.storyboardsView === true;
   if (allowed) { vistoProjectsReady = false; vistoProjectsError = ''; }
   document.body.classList.toggle('visto-read-only', allowed && !editor);
-  $('#storyboardsNav').hidden = !allowed;
+  $('#storyboardsNav').hidden = !storyboardsAllowed;
   $('#pdrNav').hidden = !pdrAllowed;
   $('#dashboardCreateBtn').hidden = !editor;
   $('#dashboardEmptyCreateBtn').hidden = !editor;

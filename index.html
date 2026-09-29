@@ -209,7 +209,6 @@
           </div>
         </aside>
       </main>
-    </div>
 
     <main class="pdr-view" id="pdrView" hidden>
       <section class="pdr-shell" id="pdrDashboard">
@@ -225,6 +224,7 @@
         <section class="pdr-table-section"><div class="pdr-section-heading"><div><span class="pdr-kicker">ORGANIZACIÓN DE RODAJE</span><h2>Detalle de tomas</h2></div><span class="pdr-page-note">Los cambios se guardan automáticamente</span></div><div class="pdr-table-wrap"><table class="pdr-table"><thead><tr><th>#</th><th>PÁG.</th><th>TOMA / TÍTULO</th><th>LOCACIÓN</th><th>JORNADA</th><th>HORARIO</th><th>ESTADO</th><th>NOTAS</th></tr></thead><tbody id="pdrPlanBody"></tbody></table><div class="pdr-empty pdr-inline-empty" id="pdrPlanEmpty" hidden><strong>El plan todavía no tiene tomas</strong><p>Cargá una o más fotos para crear las primeras filas.</p></div></div></section>
       </section>
     </main>
+    </div>
 
     <div class="modal-backdrop reviews-modal-backdrop" id="reviewsFormModal" hidden>
       <form class="modal reviews-form-modal" id="reviewsEntityForm" role="dialog" aria-modal="true" aria-labelledby="reviewsFormTitle">
@@ -291,7 +291,7 @@
     <div class="modal-backdrop shooting-plan-backdrop" id="shootingPlanModal" hidden><div class="modal shooting-plan-modal" role="dialog" aria-modal="true" aria-labelledby="shootingPlanTitle"><button class="modal-close" id="closeShootingPlanBtn" type="button" aria-label="Cerrar">×</button><div class="eyebrow"><span class="eyebrow-line"></span> PRODUCCIÓN</div><h2 id="shootingPlanTitle">Plan de rodaje</h2><p class="modal-copy">Ordená la información operativa de cada toma. Los cambios se guardan dentro del proyecto y siguen vinculados al storyboard.</p><div class="shooting-plan-toolbar"><div class="shooting-plan-summary" id="shootingPlanSummary"></div><div class="shooting-plan-actions"><button class="button button-secondary" id="exportShootingPlanBtn" type="button">↓ Exportar CSV</button><button class="button button-primary" id="closeShootingPlanSecondaryBtn" type="button">Listo</button></div></div><div class="shooting-plan-table-wrap"><table class="shooting-plan-table"><thead><tr><th>#</th><th>PÁGINA</th><th>TOMA / TÍTULO</th><th>LOCACIÓN</th><th>JORNADA</th><th>HORARIO</th><th>ESTADO</th><th>NOTAS</th></tr></thead><tbody id="shootingPlanTableBody"></tbody></table><div class="shooting-plan-empty" id="shootingPlanEmpty" hidden>No hay tomas cargadas todavía. Sumá fotos al storyboard para empezar a armar el plan.</div></div></div></div>
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
-    <script src="app.js?v=75"></script>
+    <script src="app.js?v=76"></script>
     <script src="reviews.js?v=28"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
@@ -304,6 +304,6 @@
         appId: '1:475470109485:web:c4400a214f973223aa91a4',
       };
     </script>
-    <script type="module" src="auth.js?v=23"></script>
+    <script type="module" src="auth.js?v=24"></script>
   </body>
 </html>
