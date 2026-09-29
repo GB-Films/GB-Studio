@@ -376,6 +376,8 @@ function loadProjects() {
   return legacy ? [normalizeProject(legacy)] : [];
 }
 
+function isPdrApp() { return document.documentElement.dataset.studioApp === 'pdr'; }
+function isVistoApp() { return document.documentElement.dataset.studioApp === 'storyboards' || isPdrApp(); }
 function canEditVisto() { return window.STUDIO_PERMISSIONS?.storyboards === true; }
 function canViewVisto() { return canEditVisto() || window.STUDIO_PERMISSIONS?.storyboardsView === true; }
 const cloudProjectTimers = new Map();
@@ -951,6 +953,7 @@ function showEditor() {
   $('#exportBtn').hidden = !canEditVisto();
   $('#breadcrumbTitle').textContent = project?.title || 'Sin título';
   if (canEditVisto()) queueMicrotask(optimizeCurrentBackgroundImage);
+  if (isPdrApp() && project) queueMicrotask(openShootingPlan);
   return true;
 }
 
@@ -2462,7 +2465,7 @@ $('#dashboardCreateBtn').addEventListener('click', resetProject);
 $('#dashboardEmptyCreateBtn').addEventListener('click', resetProject);
 $('#storyboardsNav').addEventListener('click', () => {
   if (!canViewVisto()) return;
-  if (document.documentElement.dataset.studioApp === 'storyboards') showDashboard();
+  if (isVistoApp()) showDashboard();
   else window.location.assign('?app=storyboards');
 });
 $('#backToDashboardBtn').addEventListener('click', showDashboard);
@@ -2537,12 +2540,12 @@ window.addEventListener('studio-auth-change', () => {
   $('#dashboardEmptyCreateBtn').hidden = !editor;
   $('#dashboardEmpty').querySelector('p').textContent = editor ? 'Creá tu primer storyboard para empezar a ordenar las tomas.' : 'Todavía no hay proyectos compartidos para ver.';
   if (allowed) {
-    if (document.documentElement.dataset.studioApp === 'storyboards') {
+    if (isVistoApp()) {
       if (!$('#dashboardView').hidden) renderDashboard();
       else if ($('#editorView').hidden) showDashboard();
     }
     if (editor) hydrateProjectsFromIndexedDb(loadSharedStoryboards);
-    else { projects = []; project = null; if (document.documentElement.dataset.studioApp === 'storyboards') showDashboard(); else if (!$('#dashboardView').hidden) renderDashboard(); loadSharedStoryboards(); }
+    else { projects = []; project = null; if (isVistoApp()) showDashboard(); else if (!$('#dashboardView').hidden) renderDashboard(); loadSharedStoryboards(); }
     return;
   }
   cloudLoadGeneration++;
