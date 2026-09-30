@@ -32,15 +32,19 @@
       p { color:#aaa; line-height:1.6; }
       a { display:inline-block; margin-top:12px; padding:14px 24px; border:1px solid #ef714d; color:#ef714d; text-decoration:none; }
     </style>
+    <script src="../firebase-config.js?v=2"></script>
     <script type="module">
-      import { expandShareHash } from '../reviews-links.js?v=1';
+      import { resolveShareHash } from '../reviews-links.js?v=2';
       try {
         const target = new URL('../', location.href);
         target.searchParams.set('app', 'reviews');
-        target.hash = expandShareHash(location.hash);
+        target.hash = await resolveShareHash(location.hash, async alias => {
+          const { getReviewAlias } = await import('../reviews-cloud.js?v=9');
+          return getReviewAlias(alias);
+        });
         location.replace(target.href);
       } catch {
-        document.getElementById('status').textContent = 'Este enlace no es válido. Pedí al equipo que vuelva a copiarlo desde Compartir.';
+        document.getElementById('status').textContent = 'No se pudo abrir este enlace. Revisá tu conexión o pedí al equipo que confirme que la review sigue compartida.';
       }
     </script>
   </head>

@@ -41,7 +41,7 @@
       transaction.onabort = () => reject(transaction.error || new Error('No se pudo guardar el archivo'));
     });
   }
-  const cloud = () => import('./reviews-cloud.js?v=8');
+  const cloud = () => import('./reviews-cloud.js?v=9');
   const isClient = () => window.STUDIO_ROLE !== 'admin' && (window.STUDIO_MIRA_ROLE === 'client' || window.STUDIO_PERMISSIONS?.reviewsClient === true);
   const canReview = key => window.STUDIO_ROLE === 'admin' || (!(isClient() && ['reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'].includes(key)) && window.STUDIO_PERMISSIONS?.[key] === true);
   const canEnterReviews = () => canReview('reviewsView') || canReview('reviewsClient');
@@ -288,8 +288,9 @@
         state.projects = state.projects.map(entry => entry.id === project.id ? updated : entry);
       }
       const selected = records.find(record => record.id === state.active?.id) || records.sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0))[0];
-      const { buildShareUrl } = await import('./reviews-links.js?v=1');
-      const link = buildShareUrl(location.href, token, selected.id);
+      const alias = await (await cloud()).publishReviewAlias(project, version, token, selected, records.length > 1);
+      const { buildNamedShareUrl } = await import('./reviews-links.js?v=2');
+      const link = buildNamedShareUrl(location.href, alias);
       $('#reviewsCopyInput').value = link;
       $('#reviewsCopyModal').hidden = false;
       $('#reviewsCopyInput').focus(); $('#reviewsCopyInput').select();

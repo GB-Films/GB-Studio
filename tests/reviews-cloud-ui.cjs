@@ -45,6 +45,20 @@ const fakeCloud = `
     save('published', [...load('published'), share]); return share.token;
   }
   export async function updateShareMetadata() {}
+  export async function publishReviewAlias(project, version, token, file, multipleFiles) {
+    const { shareAliasBase, reserveShareAlias, sameShareTarget } = await import('./reviews-links.js?v=2');
+    const target = { token, fileId: file.id, projectId: project.id, versionId: version.id };
+    return reserveShareAlias(shareAliasBase(project, version, file, multipleFiles), async alias => {
+      const existing = load('aliases').find(item => item.alias === alias);
+      if (existing) return sameShareTarget(existing, target);
+      save('aliases', [...load('aliases'), { alias, ...target }]); return true;
+    });
+  }
+  export async function getReviewAlias(alias) {
+    const target = load('aliases').find(item => item.alias === alias);
+    if (!target || !load('published').some(share => share.token === target.token && share.active && share.files.some(file => file.id === target.fileId))) throw Error('Review unavailable');
+    return target;
+  }
   export async function upsertSharedFile() {}
   export async function getSharedReview(token) { const share = load('published').find(item => item.token === token); if (!share) throw new Error('Unknown share'); return share; }
   export async function guestIdentity() { return { uid: window.STUDIO_USER?.uid || 'anonymous-test' }; }
@@ -147,7 +161,9 @@ const fakeFirebaseAuth = `
     await page.locator('.reviews-home-card-actions button[aria-label="Compartir Montaje · V1"]').click();
     await page.locator('#reviewsCopyModal').waitFor({ state: 'visible' });
     const shareUrl = await page.locator('#reviewsCopyInput').inputValue();
-    assert.match(shareUrl, /\/mira\/#A{43}\.[A-Za-z0-9_-]{22}$/);
+    assert.match(shareUrl, /\/mira\/#\/[a-z0-9-]+$/);
+    assert.match(shareUrl, /montaje-v1$/);
+    assert.ok(!shareUrl.includes('A'.repeat(43)), 'the client link has no opaque capability');
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-published'))[0].fileCount), 1);
     await page.locator('#reviewsCopyDone').click();
     const namedGuest = await context.newPage(); namedGuest.on('pageerror', error => errors.push(error.message));

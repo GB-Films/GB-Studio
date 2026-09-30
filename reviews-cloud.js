@@ -1,8 +1,8 @@
 // Shared Reviews data. Dropbox remains the only media host; Firestore stores links and feedback.
 import { getApps, getApp, initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
-import { createShareToken, isShareToken } from './reviews-links.js?v=1';
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, runTransaction } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import { createShareToken, isShareToken, isShareAlias, shareAliasBase, sameShareTarget, reserveShareAlias } from './reviews-links.js?v=2';
 
 const app = getApps().length ? getApp() : initializeApp(window.STORYBOARD_FIREBASE_CONFIG);
 const db = getFirestore(app);
@@ -220,6 +220,22 @@ export async function updateShareMetadata(project, version) {
   await updateDoc(shareRef(version.shareToken), { projectTitle: project.title, versionTitle: version.title,
     category: version.category || 'General', sections: version.sections || [], client: project.client || '',
     agency: project.agency || '', director: project.director || '', updatedAt: new Date().toISOString() });
+}
+export async function publishReviewAlias(project, version, token, file, multipleFiles = false) {
+  const target = { token, fileId: file.id, projectId: project.id, versionId: version.id };
+  return reserveShareAlias(shareAliasBase(project, version, file, multipleFiles), alias => runTransaction(db, async transaction => {
+    const reference = doc(db, 'reviewLinks', alias);
+    const snapshot = await transaction.get(reference);
+    if (snapshot.exists()) return sameShareTarget(snapshot.data(), target);
+    transaction.set(reference, { ...target, createdAt: new Date().toISOString(), createdBy: auth.currentUser?.uid || '' });
+    return true;
+  }));
+}
+export async function getReviewAlias(alias) {
+  if (!isShareAlias(alias)) throw new Error('El nombre del enlace no es válido.');
+  const snapshot = await getDoc(doc(db, 'reviewLinks', alias));
+  if (!snapshot.exists()) throw new Error('Esta review ya no está disponible.');
+  return snapshot.data();
 }
 export async function upsertSharedFile(token, record) {
   if (record.source === 'dropbox') await setDoc(fileRef(token, record.id), cloudFile(record));

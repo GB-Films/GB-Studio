@@ -78,6 +78,29 @@ service cloud.firestore {
       allow create, update, delete: if permission('reviewsEdit');
     }
 
+    // Friendly links are intentionally public by name, but never listable.
+    // Bindings are permanent: an old client link must never open another project.
+    match /reviewLinks/{alias} {
+      allow get: if permission('reviewsShare') || (activeShare(resource.data.token)
+        && parentFile(resource.data.token, resource.data.fileId));
+      allow list: if false;
+      allow create: if permission('reviewsShare')
+        && alias.matches('^[a-z0-9]([a-z0-9-]{0,158}[a-z0-9])?$')
+        && request.resource.data.keys().hasOnly(['token', 'fileId', 'projectId', 'versionId', 'createdAt', 'createdBy'])
+        && request.resource.data.keys().hasAll(['token', 'fileId', 'projectId', 'versionId', 'createdAt', 'createdBy'])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt is string
+        && request.resource.data.token is string
+        && request.resource.data.fileId is string
+        && request.resource.data.projectId is string
+        && request.resource.data.versionId is string
+        && activeShare(request.resource.data.token)
+        && parentFile(request.resource.data.token, request.resource.data.fileId)
+        && request.resource.data.projectId == get(/databases/$(database)/documents/reviewShares/$(request.resource.data.token)).data.projectId
+        && request.resource.data.versionId == get(/databases/$(database)/documents/reviewShares/$(request.resource.data.token)).data.versionId;
+      allow update, delete: if false;
+    }
+
     match /reviewShares/{token} {
       // An unguessable URL token is the guest's capability. No collection listing.
       allow get: if permission('reviewsView') || resource.data.active == true;
