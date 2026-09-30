@@ -274,8 +274,8 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
       if (!await authorizedHomeUser()) return;
       if (appName === 'pdr') { window.location.assign('?app=pdr'); return; }
       const link = document.createElement('a');
-      link.href = 'downloads/Compi.zip';
-      link.download = 'Compi v1.3.2.zip';
+      link.href = 'downloads/Compi-Setup-v1.3.2.exe';
+      link.download = 'Compi-Setup-v1.3.2.exe';
       document.body.append(link);
       link.click();
       link.remove();

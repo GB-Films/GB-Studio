@@ -2,7 +2,7 @@
 
 La [página principal de GB Studio](https://gb-films.github.io/GB-Studio/) muestra Visto, Mira, Compi y PDR sin pedir una cuenta. Al abrir [Visto](https://gb-films.github.io/GB-Studio/?app=storyboards), [PDR](https://gb-films.github.io/GB-Studio/?app=pdr) o [Mira](https://gb-films.github.io/GB-Studio/?app=reviews), se solicita iniciar sesión con Google y se aplica el permiso de esa persona. PDR reutiliza los proyectos de Visto y abre directamente el plan de rodaje. La tarjeta de Compi verifica el acceso antes de descargar la aplicación de escritorio para Windows. La cabecera permite volver al inicio o cambiar entre las herramientas habilitadas para la cuenta. Los enlaces nuevos de revisiones usan la dirección `GB-Studio`. Los enlaces anteriores con `/StoryApp/` requieren reemplazar esa parte de la dirección por `/GB-Studio/`; GitHub Pages no redirige la dirección antigua. Las rutas internas conservan `storyboards`, `pdr` y `reviews` para mantener los parámetros de los enlaces.
 
-La descarga actual de Compi es la **versión 1.3.2 para Windows**. El archivo descargado se llama `Compi v1.3.2.zip`. Para actualizarlo, reemplazá `downloads/Compi.zip` por el ZIP de la versión nueva, actualizá el número visible y el nombre de descarga, y publicá esos cambios. Después de descomprimirlo en Windows, abrí `Compi.exe`; en el primer uso puede necesitar internet para obtener FFmpeg.
+La descarga principal de Compi es el instalador **1.3.2 para Windows**, llamado `Compi-Setup-v1.3.2.exe`. El ZIP portátil de la misma versión está en `downloads/Compi.zip`. Para actualizar Compi, reemplazá ambos archivos con las entregas de la versión nueva, actualizá el número visible y el nombre de descarga, y publicá esos cambios.
 
 ## Mira
 
