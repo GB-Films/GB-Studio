@@ -79,7 +79,7 @@ service cloud.firestore {
     }
 
     match /reviewShares/{token} {
-      // A 256-bit unguessable URL token is the guest's capability. No collection listing.
+      // An unguessable URL token is the guest's capability. No collection listing.
       allow get: if permission('reviewsView') || resource.data.active == true;
       allow list: if permission('reviewsView');
       allow create, delete: if permission('reviewsShare');
@@ -109,8 +109,11 @@ service cloud.firestore {
             && request.resource.data.strokesJson is string && request.resource.data.strokesJson.size() <= 200000
             && request.resource.data.resolved is bool
             && (permission('reviewsEdit') || request.resource.data.resolved == false);
-          // Review clients can add feedback, but cannot edit, resolve or delete anything.
-          allow update, delete: if permission('reviewsEdit');
+          // Only the team can edit/resolve. Guests may delete their own feedback.
+          allow update: if permission('reviewsEdit');
+          allow delete: if permission('reviewsEdit') || (request.auth != null
+            && activeShare(token) && parentFile(token, fileId)
+            && resource.data.authorUid == request.auth.uid);
         }
       }
     }

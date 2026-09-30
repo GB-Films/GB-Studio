@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#000000"/>
+  <rect x="30" y="30" width="1140" height="570" rx="3" fill="none" stroke="#383633"/>
+  <image href="gb-films-icon.png" x="63" y="58" width="60" height="60"/>
+  <text x="139" y="86" fill="#f6f4ef" font-family="Arial,sans-serif" font-size="16" font-weight="700" letter-spacing="2">GB STUDIO</text>
+  <text x="139" y="109" fill="#82807c" font-family="Arial,sans-serif" font-size="12" letter-spacing="1.4">GRAN BERTA FILMS</text>
+  <circle cx="850" cy="86" r="4" fill="#ef714d"/>
+  <text x="865" y="91" fill="#aaa59e" font-family="Arial,sans-serif" font-size="13" letter-spacing="1.7">MATERIAL COMPARTIDO</text>
+
+  <text x="65" y="340" fill="#f6f4ef" font-family="Arial,sans-serif" font-size="220" font-weight="700" letter-spacing="-16">MIRA<tspan fill="#ef714d">.</tspan></text>
+  <text x="72" y="423" fill="#f6f4ef" font-family="Arial,sans-serif" font-size="31" font-weight="500">Mirá el material.</text>
+  <text x="72" y="465" fill="#f6f4ef" font-family="Arial,sans-serif" font-size="31" font-weight="500">Dejá tu devolución.</text>
+  <text x="72" y="553" fill="#92908a" font-family="Arial,sans-serif" font-size="17">Una review, todas las devoluciones.</text>
+
+  <path d="M687 181V497" stroke="#383633"/>
+  <image href="gb-films-icon.png" x="703" y="129" width="440" height="440"/>
+</svg>

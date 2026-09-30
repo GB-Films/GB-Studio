@@ -215,7 +215,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
     const [{ initializeApp }, { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut }, cloud] = await Promise.all([
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js'),
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js'),
-      import('./reviews-cloud.js?v=7'),
+      import('./reviews-cloud.js?v=8'),
     ]);
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);

@@ -2,6 +2,7 @@
 import { getApps, getApp, initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
+import { createShareToken, isShareToken } from './reviews-links.js?v=1';
 
 const app = getApps().length ? getApp() : initializeApp(window.STORYBOARD_FIREBASE_CONFIG);
 const db = getFirestore(app);
@@ -70,7 +71,7 @@ export async function saveStaff(email, permissions, name = '', options = {}) {
   if (safe.reviewsClient && (safe.reviewsView || safe.reviewsCreate || safe.reviewsEdit || safe.reviewsShare)) throw new Error('El rol Cliente no puede combinarse con acceso a toda la biblioteca.');
   if ((safe.reviewsCreate || safe.reviewsEdit || safe.reviewsShare) && !safe.reviewsView) throw new Error('Para trabajar en Reviews, habilitá también Ver Reviews.');
   if ((safe.reviewsCreate || safe.reviewsShare) && !safe.reviewsEdit) throw new Error('Para crear o compartir reviews, habilitá también Editar Reviews.');
-  const reviewTokens = [...new Set((Array.isArray(options.reviewTokens) ? options.reviewTokens : []).filter(value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value)))];
+  const reviewTokens = [...new Set((Array.isArray(options.reviewTokens) ? options.reviewTokens : []).filter(value => typeof value === 'string' && isShareToken(value)))];
   if (safe.storyboards) safe.storyboardsView = true;
   if (safe.pdr) safe.pdrView = true;
   const roles = { storyboards: safe.storyboards ? 'editor' : safe.storyboardsView ? 'viewer' : 'none', pdr: safe.pdr ? 'editor' : safe.pdrView ? 'viewer' : 'none', reviews: safe.reviewsClient ? 'client' : options.roles?.reviews || 'custom' };
@@ -174,10 +175,7 @@ export async function listStaffFiles() {
   });
 }
 
-function token() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
-}
+// Short capabilities keep 128 bits of cryptographic randomness. Old links work.
 function cloudFile(record) {
   return { name: record.name, kind: record.kind, source: 'dropbox', sourceUrl: record.sourceUrl,
     sectionId: record.sectionId || 'default', sortIndex: Number(record.sortIndex) || 0,
@@ -192,7 +190,7 @@ function cloudFile(record) {
     createdAt: record.createdAt || new Date().toISOString(), updatedAt: record.updatedAt || new Date().toISOString() };
 }
 export async function publishReview(project, version, records) {
-  const id = version.shareToken || token();
+  const id = version.shareToken || createShareToken();
   const firstPublish = !version.shareToken;
   const share = { projectId: project.id, versionId: version.id, projectTitle: project.title,
     versionTitle: version.title, category: version.category || 'General', sections: version.sections || [],
@@ -240,7 +238,7 @@ export async function deleteSharedReview(token) {
   await deleteDoc(shareRef(token));
 }
 export async function getSharedReview(token) {
-  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('El enlace no es válido.');
+  if (!isShareToken(token)) throw new Error('El enlace no es válido.');
   const snapshot = await getDoc(shareRef(token));
   if (!snapshot.exists() || !snapshot.data().active) throw new Error('Esta review ya no está disponible.');
   const files = await getDocs(collection(db, 'reviewShares', token, 'files'));

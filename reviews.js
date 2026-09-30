@@ -41,7 +41,7 @@
       transaction.onabort = () => reject(transaction.error || new Error('No se pudo guardar el archivo'));
     });
   }
-  const cloud = () => import('./reviews-cloud.js?v=7');
+  const cloud = () => import('./reviews-cloud.js?v=8');
   const isClient = () => window.STUDIO_ROLE !== 'admin' && (window.STUDIO_MIRA_ROLE === 'client' || window.STUDIO_PERMISSIONS?.reviewsClient === true);
   const canReview = key => window.STUDIO_ROLE === 'admin' || (!(isClient() && ['reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'].includes(key)) && window.STUDIO_PERMISSIONS?.[key] === true);
   const canEnterReviews = () => canReview('reviewsView') || canReview('reviewsClient');
@@ -288,12 +288,12 @@
         state.projects = state.projects.map(entry => entry.id === project.id ? updated : entry);
       }
       const selected = records.find(record => record.id === state.active?.id) || records.sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0))[0];
-      const link = new URL(location.href); link.searchParams.set('app', 'reviews');
-      link.hash = new URLSearchParams({ share: token, file: selected.id }).toString();
-      $('#reviewsCopyInput').value = link.href;
+      const { buildShareUrl } = await import('./reviews-links.js?v=1');
+      const link = buildShareUrl(location.href, token, selected.id);
+      $('#reviewsCopyInput').value = link;
       $('#reviewsCopyModal').hidden = false;
       $('#reviewsCopyInput').focus(); $('#reviewsCopyInput').select();
-      try { await navigator.clipboard.writeText(link.href); $('#reviewsCopyDescription').textContent = `Enlace copiado. Abre este archivo directamente; el cliente puede ${selected.kind === 'video' ? 'ver y descargar el video' : 'ver la foto'} sin cuenta, o comentar con su nombre o Google.`; }
+      try { await navigator.clipboard.writeText(link); $('#reviewsCopyDescription').textContent = `Enlace copiado. Abre este archivo directamente; el cliente puede ${selected.kind === 'video' ? 'ver y descargar el video' : 'ver la foto'} sin cuenta, o comentar con su nombre o Google.`; }
       catch { $('#reviewsCopyDescription').textContent = 'Copiá el enlace para enviárselo al cliente. Abrirá este archivo directamente, sin entrar al resto de Mira.'; }
       if (!$('#reviewsHome').hidden) renderHome();
     } catch (error) {
@@ -344,6 +344,11 @@
   }
   function isGuestReview() { return document.body.classList.contains('public-review'); }
   function canComment() { return isGuestReview() ? Boolean(state.shareToken && (state.guestName || window.STUDIO_ROLE === 'review_guest')) : canReview('reviewsEdit') || (canReview('reviewsClient') && Boolean(currentVersion()?.shareToken)); }
+  function canDeleteComment(comment) {
+    if (!isGuestReview() && canReview('reviewsEdit')) return true;
+    const uid = window.STUDIO_USER?.uid || state.guestUid;
+    return Boolean(canComment() && uid && comment.authorUid === uid);
+  }
   function applyReviewPermissions() {
     const guest = isGuestReview();
     const commenting = canComment();
@@ -631,11 +636,14 @@
       const text = document.createElement('span'); text.className = 'reviews-comment-text'; text.textContent = comment.text || 'Anotación visual';
       open.append(meta, text); open.addEventListener('click', () => selectComment(comment.id));
       card.append(open);
-      if (!isGuestReview() && canReview('reviewsEdit')) {
+      if (canDeleteComment(comment)) {
         const actions = document.createElement('div'); actions.className = 'reviews-comment-actions';
-        const resolve = document.createElement('button'); resolve.type = 'button'; resolve.textContent = comment.resolved ? 'Reabrir' : 'Resolver'; resolve.addEventListener('click', () => updateComment(comment.id, entry => { entry.resolved = !entry.resolved; }));
+        if (!isGuestReview() && canReview('reviewsEdit')) {
+          const resolve = document.createElement('button'); resolve.type = 'button'; resolve.textContent = comment.resolved ? 'Reabrir' : 'Resolver'; resolve.addEventListener('click', () => updateComment(comment.id, entry => { entry.resolved = !entry.resolved; }));
+          actions.append(resolve);
+        }
         const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Eliminar'; remove.addEventListener('click', () => updateComment(comment.id, null));
-        actions.append(resolve, remove); card.append(actions);
+        actions.append(remove); card.append(actions);
       }
       list.append(card);
     }
@@ -714,6 +722,7 @@
       state.stopComments = api.watchComments(token, id, comments => {
         if (state.active?.id !== id) return;
         state.active.comments = comments;
+        if (state.activeCommentId && !comments.some(comment => comment.id === state.activeCommentId)) state.activeCommentId = null;
         renderCommentList(); renderMarkers(); renderList(); redraw();
       }, error => { console.error('Could not load shared comments', error); showStatus('No se pudieron cargar los comentarios compartidos.'); });
     }
@@ -762,20 +771,27 @@
     renderCommentList(); redraw(); updateClock();
   }
   async function updateComment(id, mutate) {
-    if (!state.active || isGuestReview() || !canReview('reviewsEdit')) return;
-    const previous = structuredClone(state.active.comments);
-    if (mutate) { const entry = state.active.comments.find(comment => comment.id === id); if (!entry) return; mutate(entry); }
-    else state.active.comments = state.active.comments.filter(comment => comment.id !== id);
-    if (state.activeCommentId === id && !mutate) state.activeCommentId = null;
-    state.active.updatedAt = new Date().toISOString();
+    const record = state.active;
+    const entry = record?.comments.find(comment => comment.id === id);
+    if (!entry || (mutate ? isGuestReview() || !canReview('reviewsEdit') : !canDeleteComment(entry))) return;
+    if (!mutate && !await askConfirmation('¿Eliminar este comentario?', 'Se va a borrar el comentario y su anotación de esta review.', 'Eliminar comentario')) return;
+    if (state.active !== record || !record.comments.some(comment => comment.id === id)) return;
+    const token = state.shareToken || currentVersion()?.shareToken;
+    const updated = mutate ? structuredClone(entry) : null;
+    if (mutate) mutate(updated);
     try {
-      const token = state.shareToken || currentVersion()?.shareToken;
       if (token) {
         const api = await cloud();
-        if (mutate) await api.changeSharedComment(token, state.active.id, state.active.comments.find(comment => comment.id === id));
-        else await api.deleteSharedComment(token, state.active.id, id);
-      } else await saveRecord(state.active);
-    } catch (error) { state.active.comments = previous; showStatus('No se pudo guardar el cambio.'); console.error(error); }
+        if (mutate) await api.changeSharedComment(token, record.id, updated);
+        else await api.deleteSharedComment(token, record.id, id);
+      } else {
+        await saveRecord({ ...record, comments: mutate ? record.comments.map(comment => comment.id === id ? updated : comment) : record.comments.filter(comment => comment.id !== id), updatedAt: new Date().toISOString() });
+      }
+      record.comments = mutate ? record.comments.map(comment => comment.id === id ? updated : comment) : record.comments.filter(comment => comment.id !== id);
+      if (!mutate && state.active === record && state.activeCommentId === id) state.activeCommentId = null;
+      if (state.active === record) showStatus(mutate ? 'Comentario actualizado.' : 'Comentario eliminado.');
+    } catch (error) { if (state.active === record) showStatus('No se pudo guardar el cambio. El comentario se conserva.'); console.error(error); }
+    if (state.active !== record) return;
     renderCommentList(); renderList(); renderMarkers(); redraw();
   }
   async function addDropboxLink(event) {
@@ -1253,7 +1269,7 @@
       const user = await (await cloud()).guestIdentity();
       state.guestUid = user.uid; state.guestName = name;
       sessionStorage.setItem(`gb-review-guest:${state.shareToken}`, name);
-      applyReviewPermissions();
+      applyReviewPermissions(); renderCommentList();
     } catch (error) {
       console.error('Guest sign-in failed', error);
       $('#reviewsGuestNameError').textContent = 'No se pudo habilitar el comentario. Verificá que el acceso de invitado esté activo e intentá de nuevo.';

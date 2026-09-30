@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es" prefix="og: https://ogp.me/ns#">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MIRA · Mirá el material. Dejá tu devolución.</title>
+    <meta name="description" content="Abrí la review, mirá las fotos y los videos y dejá tus comentarios en un mismo lugar. Una herramienta de GB Studio." />
+    <meta name="theme-color" content="#111111" />
+    <meta name="referrer" content="no-referrer" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="GB Films · GB Studio" />
+    <meta property="og:locale" content="es_AR" />
+    <meta property="og:title" content="MIRA · Una review, todas las devoluciones." />
+    <meta property="og:description" content="Mirá el material y dejá tus comentarios. Fotos, videos y feedback, todo en un mismo lugar." />
+    <meta property="og:url" content="https://gb-films.github.io/GB-Studio/mira/" />
+    <meta property="og:image" content="https://gb-films.github.io/GB-Studio/assets/mira-social-v1.png" />
+    <meta property="og:image:secure_url" content="https://gb-films.github.io/GB-Studio/assets/mira-social-v1.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MIRA con el logo oficial de GB Films. Mirá el material. Dejá tu devolución." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MIRA · Una review, todas las devoluciones." />
+    <meta name="twitter:description" content="Mirá el material y dejá tus comentarios. Todo en un mismo lugar." />
+    <meta name="twitter:image" content="https://gb-films.github.io/GB-Studio/assets/mira-social-v1.png" />
+    <link rel="icon" type="image/png" href="../assets/gb-films-logo-white.png?v=2" />
+    <style>
+      :root { color-scheme:dark; }
+      body { display:grid; min-height:100dvh; margin:0; place-items:center; background:#111; color:#f6f4ef; font:16px Arial,sans-serif; }
+      main { max-width:440px; padding:32px; text-align:center; }
+      h1 { margin:0 0 20px; font-size:72px; letter-spacing:-5px; }
+      p { color:#aaa; line-height:1.6; }
+      a { display:inline-block; margin-top:12px; padding:14px 24px; border:1px solid #ef714d; color:#ef714d; text-decoration:none; }
+    </style>
+    <script type="module">
+      import { expandShareHash } from '../reviews-links.js?v=1';
+      try {
+        const target = new URL('../', location.href);
+        target.searchParams.set('app', 'reviews');
+        target.hash = expandShareHash(location.hash);
+        location.replace(target.href);
+      } catch {
+        document.getElementById('status').textContent = 'Este enlace no es válido. Pedí al equipo que vuelva a copiarlo desde Compartir.';
+      }
+    </script>
+  </head>
+  <body>
+    <main>
+      <h1>MIRA</h1>
+      <p id="status">Abriendo la review…</p>
+      <a href="../?app=reviews">Abrir MIRA</a>
+      <noscript><p>Activá JavaScript para abrir el material compartido.</p></noscript>
+    </main>
+  </body>
+</html>

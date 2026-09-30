@@ -16,7 +16,7 @@ const root = path.join(__dirname, '..');
 const server = http.createServer((request, response) => {
   const pathname = new URL(request.url, 'http://localhost').pathname;
   if (pathname === '/__blank') { response.setHeader('Content-Type', 'text/html'); response.end('<!doctype html><title>Blank</title>'); return; }
-  const file = path.join(root, pathname === '/' ? 'index.html' : pathname);
+  const file = path.join(root, pathname.endsWith('/') ? pathname + 'index.html' : pathname);
   response.setHeader('Content-Type', ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png' })[path.extname(file)] || 'text/plain');
   fs.readFile(file, (error, data) => { if (error) { response.statusCode = 404; response.end(); } else response.end(data); });
 });
@@ -47,8 +47,14 @@ const fakeCloud = `
   export async function updateShareMetadata() {}
   export async function upsertSharedFile() {}
   export async function getSharedReview(token) { const share = load('published').find(item => item.token === token); if (!share) throw new Error('Unknown share'); return share; }
-  export async function guestIdentity() { return { uid: 'anonymous-test' }; }
-  export async function addSharedComment(token, fileId, comment, authorName) { save('comments', [...load('comments'), { ...comment, fileId, authorUid: 'anonymous-test', authorName }]); commentWatchers.get(fileId)?.(load('comments').filter(item => item.fileId === fileId)); }
+  export async function guestIdentity() { return { uid: window.STUDIO_USER?.uid || 'anonymous-test' }; }
+  export async function addSharedComment(token, fileId, comment, authorName) { save('comments', [...load('comments'), { ...comment, fileId, authorUid: (await guestIdentity()).uid, authorName }]); commentWatchers.get(fileId)?.(load('comments').filter(item => item.fileId === fileId)); }
+  export async function deleteSharedComment(token, fileId, id) {
+    const comment = load('comments').find(item => item.id === id && item.fileId === fileId);
+    if (window.failCommentDelete || comment?.authorUid !== (await guestIdentity()).uid) throw new Error('permission-denied');
+    save('comments', load('comments').filter(item => item.id !== id || item.fileId !== fileId));
+    commentWatchers.get(fileId)?.(load('comments').filter(item => item.fileId === fileId));
+  }
   export function watchComments(token, file, callback) { commentWatchers.set(file, callback); callback(load('comments').filter(comment => comment.fileId === file)); return () => commentWatchers.delete(file); }
 `;
 const fakeFirebaseApp = `export function initializeApp() { return {}; }`;
@@ -141,7 +147,7 @@ const fakeFirebaseAuth = `
     await page.locator('.reviews-home-card-actions button[aria-label="Compartir Montaje · V1"]').click();
     await page.locator('#reviewsCopyModal').waitFor({ state: 'visible' });
     const shareUrl = await page.locator('#reviewsCopyInput').inputValue();
-    assert.match(shareUrl, /\?app=reviews#share=A{43}&file=/);
+    assert.match(shareUrl, /\/mira\/#A{43}\.[A-Za-z0-9_-]{22}$/);
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-published'))[0].fileCount), 1);
     await page.locator('#reviewsCopyDone').click();
     const namedGuest = await context.newPage(); namedGuest.on('pageerror', error => errors.push(error.message));
@@ -289,7 +295,7 @@ const fakeFirebaseAuth = `
     await namedGuest.keyboard.press('Control+z');
     assert.equal(await namedGuest.locator('#reviewsCanvas').evaluate(canvas => canvas.toDataURL()), savedDrawing, 'Ctrl+Z restores a selected saved annotation');
     assert.match(await namedGuest.locator('.reviews-comment-meta').textContent(), /Roberto/);
-    assert.equal(await namedGuest.locator('.reviews-comment-actions').count(), 0, 'a named guest cannot delete or resolve comments');
+    assert.equal(await namedGuest.locator('.reviews-comment-actions button').count(), 1, 'a named guest can delete their own feedback but cannot resolve it');
     await namedGuest.close();
     const googleGuest = await context.newPage(); googleGuest.on('pageerror', error => errors.push(error.message));
     await googleGuest.goto(shareUrl);
@@ -300,9 +306,40 @@ const fakeFirebaseAuth = `
     await googleGuest.locator('#reviewsCommentText').fill('Revisar final');
     await googleGuest.locator('#reviewsCommentForm button[type=submit]').click();
     await googleGuest.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '2');
-    assert.equal(await googleGuest.locator('.reviews-comment-actions').count(), 0, 'a Google review guest cannot delete comments');
+    assert.equal(await googleGuest.locator('.reviews-comment-actions button').count(), 1, 'a Google review guest only sees deletion for their own comment');
     assert.deepEqual(await googleGuest.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-comments')).map(comment => comment.authorName)), ['Roberto', 'Cliente Google']);
+    assert.equal(await googleGuest.locator('.reviews-comment').filter({ hasText: 'Roberto' }).getByRole('button', { name: 'Eliminar', exact: true }).count(), 0, 'cannot delete another guest with the same shared link');
+    await googleGuest.getByRole('button', { name: 'Eliminar', exact: true }).click();
+    await googleGuest.locator('#reviewsConfirmCancel').click();
+    assert.equal(await googleGuest.locator('#reviewsCommentCount').textContent(), '2', 'cancelling preserves feedback');
+    await googleGuest.getByRole('button', { name: 'Eliminar', exact: true }).click();
+    await googleGuest.locator('#reviewsConfirmAccept').click();
+    await googleGuest.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '1');
+    assert.deepEqual(await googleGuest.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-comments')).map(comment => comment.authorName)), ['Roberto']);
     await googleGuest.close();
+    const returningGuest = await context.newPage();
+    await returningGuest.goto(shareUrl);
+    await returningGuest.locator('#reviewsGuestName').fill('Roberto');
+    await returningGuest.locator('#reviewsGuestLogin').click();
+    await returningGuest.locator('.reviews-comment-actions button').waitFor();
+    await returningGuest.locator('.reviews-comment-open').click();
+    await returningGuest.evaluate(() => { window.failCommentDelete = true; });
+    await returningGuest.getByRole('button', { name: 'Eliminar', exact: true }).click();
+    await returningGuest.locator('#reviewsConfirmAccept').click();
+    await returningGuest.waitForFunction(() => /El comentario se conserva/.test(document.querySelector('#reviewsCommentContext').textContent));
+    assert.equal(await returningGuest.locator('#reviewsCommentCount').textContent(), '1', 'failed deletion preserves the comment and annotation');
+    await returningGuest.evaluate(() => { window.failCommentDelete = false; });
+    await returningGuest.getByRole('button', { name: 'Eliminar', exact: true }).click();
+    await returningGuest.locator('#reviewsConfirmAccept').click();
+    await returningGuest.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '0');
+    assert.deepEqual(await returningGuest.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-comments'))), []);
+    assert.equal(await returningGuest.locator('#reviewsCanvas').evaluate(canvas => {
+      const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      return pixels.some((value, index) => index % 4 === 3 && value > 0);
+    }), false, 'deleting the selected feedback also clears its drawing');
+    await returningGuest.reload();
+    await returningGuest.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '0');
+    await returningGuest.close();
     await page.evaluate(() => {
       const shares = JSON.parse(localStorage.getItem('test-cloud-published'));
       const second = { ...shares[0], token: 'B'.repeat(43), files: [...shares[0].files, {
