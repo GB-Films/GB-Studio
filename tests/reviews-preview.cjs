@@ -21,9 +21,12 @@ const server = http.createServer((request, response) => {
     assert.match(await preview.title(), /^MIRA/);
     assert.match(await preview.locator('meta[property="og:site_name"]').getAttribute('content'), /GB Films/);
     const metaImage = await preview.locator('meta[property="og:image"]').getAttribute('content');
-    assert.match(metaImage, /assets\/mira-social-v1.png$/);
-    await preview.goto(origin + '/assets/mira-social-v1.png');
-    assert.deepEqual(await preview.locator('img').evaluate(image => [image.naturalWidth, image.naturalHeight]), [1200, 630]);
+    assert.match(metaImage, /assets\/gb-films-icon.png\?v=2$/);
+    assert.equal(await preview.locator('meta[property="og:image:alt"]').getAttribute('content'), 'Logo oficial de GB Films sobre fondo negro.');
+    assert.equal(await preview.locator('meta[property="og:image:width"]').getAttribute('content'), '1920');
+    assert.equal(await preview.locator('meta[property="og:image:height"]').getAttribute('content'), '1920');
+    await preview.goto(origin + '/assets/gb-films-icon.png?v=2');
+    assert.deepEqual(await preview.locator('img').evaluate(image => [image.naturalWidth, image.naturalHeight]), [1920, 1920]);
     const page = await browser.newPage();
     // Do not initialize the actual app or contact Firebase in this routing test.
     await page.route(origin + '/?app=reviews*', route => route.fulfill({ contentType: 'text/html', body: '<title>Review</title>' }));
@@ -43,6 +46,6 @@ const server = http.createServer((request, response) => {
     assert.match(page.url(), /mira\/#\/unknown-project$/);
     await page.goto(origin + '/mira/#invalid');
     await page.locator('#status').filter({ hasText: 'No se pudo abrir este enlace' }).waitFor();
-    console.log('MIRA preview passed: static crawler metadata, 1200x630 image, named/legacy redirects and unavailable links.');
+    console.log('MIRA preview passed: official GB-only icon, square metadata, named/legacy redirects and unavailable links.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
