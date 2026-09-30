@@ -275,7 +275,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
       if (appName === 'pdr') { window.location.assign('?app=pdr'); return; }
       const link = document.createElement('a');
       link.href = 'downloads/Compi.zip';
-      link.download = 'Compi v1.1.7.zip';
+      link.download = 'Compi v1.3.2.zip';
       document.body.append(link);
       link.click();
       link.remove();
