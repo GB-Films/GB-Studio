@@ -242,6 +242,9 @@ body.legacy-public-review .reviews-view { grid-template-columns:minmax(0,1fr) mi
 .reviews-playback-tools label { display:flex; align-items:center; gap:4px; }
 .reviews-playback-tools select,.reviews-playback-tools input { width:60px; padding:5px; border:1px solid #555; background:#111; color:#fff; font:10px 'DM Mono',monospace; }
 .reviews-playback-tools input { width:70px; }
+.reviews-playback-tools #reviewsFps { padding:5px 6px; border:1px solid #555; border-radius:3px; color:#fff; font:10px 'DM Mono',monospace; }
+.reviews-playback-tools #reviewsFps[data-status="unavailable"] { color:#ffab89; }
+.reviews-playback-tools button:disabled,.reviews-playback-tools input:disabled { opacity:.4; cursor:default; }
 .reviews-shortcuts { position:absolute; right:10px; bottom:7px; }
 .reviews-shortcuts #reviewsShortcutsBtn { display:grid; place-items:center; width:29px; height:27px; padding:3px; border:1px solid #555; border-radius:4px; background:#252525; color:#ddd; }
 .reviews-shortcuts #reviewsShortcutsBtn:hover { border-color:#fff; color:#fff; }

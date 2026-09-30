@@ -181,7 +181,13 @@ function token() {
 function cloudFile(record) {
   return { name: record.name, kind: record.kind, source: 'dropbox', sourceUrl: record.sourceUrl,
     sectionId: record.sectionId || 'default', sortIndex: Number(record.sortIndex) || 0,
-    fps: Number(record.fps) || 24, frameStart: Number(record.frameStart) || 1,
+    fps: record.fpsSource === 'metadata' && Number.isFinite(record.fps) && record.fps > 0 ? record.fps : null,
+    fpsSource: record.fpsSource === 'metadata' ? 'metadata' : null,
+    fpsMode: record.fpsSource === 'metadata' ? record.fpsMode || 'unknown' : 'unknown',
+    fpsNumerator: record.fpsNumerator ?? null, fpsDenominator: record.fpsDenominator ?? null,
+    fpsMetadataVersion: record.fpsMetadataVersion ?? null,
+    videoFrameCount: record.videoFrameCount ?? null, videoDuration: record.videoDuration ?? null,
+    frameStart: Number.isSafeInteger(record.frameStart) ? record.frameStart : 1,
     timelineMode: record.timelineMode || 'time', inPoint: record.inPoint ?? null, outPoint: record.outPoint ?? null,
     createdAt: record.createdAt || new Date().toISOString(), updatedAt: record.updatedAt || new Date().toISOString() };
 }

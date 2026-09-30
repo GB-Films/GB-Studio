@@ -72,7 +72,7 @@ const fakeFirebaseAuth = `
     let page = await context.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await context.route('https://www.gstatic.com/firebasejs/**', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: route.request().url().includes('firebase-app.js') ? fakeFirebaseApp : fakeFirebaseAuth }));
-    await context.route('**/reviews-cloud.js?v=6', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: fakeCloud }));
+    await context.route('**/reviews-cloud.js*', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: fakeCloud }));
     await context.route('https://dl.dropboxusercontent.com/scl/fi/**', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', headers: { 'access-control-allow-origin': '*' }, body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"></svg>' }));
     await context.route('https://www.dropbox.com/scl/fi/**', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"></svg>' }));
     const url = `http://127.0.0.1:${server.address().port}`;
@@ -344,11 +344,13 @@ const fakeFirebaseAuth = `
     assert.ok(Math.abs(movedVideo.x - videoBounds.x + 37) < 2 && Math.abs(movedVideo.y - videoBounds.y - 26) < 2, 'middle-button drag pans the video itself');
     assert.equal(await videoGuest.locator('#reviewsVideo').evaluate(video => video.paused), true, 'middle-button drag does not toggle video playback');
     await videoGuest.keyboard.press('h');
+    await videoGuest.waitForFunction(() => document.querySelector('#reviewsFps').dataset.status !== 'loading');
     await rejectTabCapture(videoGuest);
     const frameDownload = videoGuest.waitForEvent('download');
     await videoGuest.locator('#reviewsScreenshotBtn').click();
     const framePng = await frameDownload;
-    assert.match(framePng.suggestedFilename(), /revision-fotograma-\d+\.png$/);
+    const hasFrameClock = !await videoGuest.locator('#reviewsNextFrame').isDisabled();
+    assert.match(framePng.suggestedFilename(), hasFrameClock ? /revision-fotograma-\d+\.png$/ : /revision-tiempo-\d+ms\.png$/, 'the capture does not invent a frame number if the rate is unknown or variable');
     const frameBytes = fs.readFileSync(await framePng.path());
     assert.deepEqual([frameBytes.readUInt32BE(16), frameBytes.readUInt32BE(20)], [320, 180], 'the video frame exports at its native dimensions');
     assert.equal(await videoGuest.evaluate(() => window.captureRequests), 0, 'video PNG download does not ask to capture the tab');

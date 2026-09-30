@@ -14,6 +14,7 @@
   let hydratedUserUid = null;
   let reviewsLibraryReady = false;
   let reviewsLibraryError = '';
+  let videoProbe = null;
 
   function openDatabase() {
     if (!databasePromise) databasePromise = new Promise((resolve, reject) => {
@@ -40,7 +41,7 @@
       transaction.onabort = () => reject(transaction.error || new Error('No se pudo guardar el archivo'));
     });
   }
-  const cloud = () => import('./reviews-cloud.js?v=6');
+  const cloud = () => import('./reviews-cloud.js?v=7');
   const isClient = () => window.STUDIO_ROLE !== 'admin' && (window.STUDIO_MIRA_ROLE === 'client' || window.STUDIO_PERMISSIONS?.reviewsClient === true);
   const canReview = key => window.STUDIO_ROLE === 'admin' || (!(isClient() && ['reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'].includes(key)) && window.STUDIO_PERMISSIONS?.[key] === true);
   const canEnterReviews = () => canReview('reviewsView') || canReview('reviewsClient');
@@ -370,7 +371,7 @@
   function isVideo() { return state.active?.kind === 'video'; }
   function currentTime() { return isVideo() ? Math.max(0, video.currentTime || 0) : 0; }
   function showStatus(message) { $('#reviewsCommentContext').textContent = message; }
-  function stopMedia() { video.pause(); video.removeAttribute('src'); video.load(); image.removeAttribute('src'); state.model?.dispose(); state.model = null; if (state.mediaUrl) URL.revokeObjectURL(state.mediaUrl); state.mediaUrl = null; }
+  function stopMedia() { videoProbe?.controller.abort(); videoProbe = null; video.pause(); video.removeAttribute('src'); video.load(); image.removeAttribute('src'); state.model?.dispose(); state.model = null; if (state.mediaUrl) URL.revokeObjectURL(state.mediaUrl); state.mediaUrl = null; }
   function rememberAnnotation(action) { state.undoHistory.push(action); if (state.undoHistory.length > 50) state.undoHistory.shift(); }
   function clearAnnotation() {
     if (state.draft.length || state.scratch.length || visibleStrokes().length) {
@@ -388,13 +389,34 @@
     else (state.sketchMode ? state.scratch : state.draft).pop();
     redraw();
   }
-  function fps() { return Number(state.active?.fps) || 24; }
+  function fps() { const record = state.active; return record?.fpsSource === 'metadata' && record.fpsMode === 'constant' && Number.isFinite(record.fps) && record.fps > 0 ? record.fps : null; }
   function firstFrame() { return Number.isSafeInteger(state.active?.frameStart) ? state.active.frameStart : 1; }
-  function frameIndex() { return Math.round(currentTime() * fps()); }
-  function lastFrameIndex() { return Number.isFinite(video.duration) ? Math.max(0, Math.ceil(video.duration * fps()) - 1) : 0; }
-  function frameNumber() { return firstFrame() + Math.min(frameIndex(), lastFrameIndex()); }
-  function frameMode() { return state.active?.timelineMode === 'frames'; }
-  function seekFrame(index) { if (!isVideo() || !Number.isFinite(video.duration)) return; video.pause(); video.currentTime = Math.min(video.duration, Math.max(0, Math.min(lastFrameIndex(), Math.round(index))) / fps()); updateClock(); }
+  function frameIndex() { return fps() ? Math.round(currentTime() * fps()) : 0; }
+  function lastFrameIndex() { if (!fps()) return 0; const count = state.active?.videoFrameCount; return Number.isSafeInteger(count) && count > 0 ? count - 1 : Number.isFinite(video.duration) ? Math.max(0, Math.ceil(video.duration * fps()) - 1) : 0; }
+  function frameNumber() { return fps() ? firstFrame() + Math.min(frameIndex(), lastFrameIndex()) : null; }
+  function frameMode() { return Boolean(fps()) && state.active?.timelineMode === 'frames'; }
+  function seekFrame(index) { if (!isVideo() || !fps() || !Number.isFinite(index) || !Number.isFinite(video.duration)) return; video.pause(); video.currentTime = Math.min(video.duration, Math.max(0, Math.min(lastFrameIndex(), Math.round(index))) / fps()); updateClock(); }
+  async function detectVideoMetadata(record, source) {
+    const probe = videoProbe;
+    if (!probe || state.active !== record || probe.controller.signal.aborted) return;
+    try {
+      const { inspectVideo } = await import('./reviews-video-metadata.js?v=1');
+      const metadata = await inspectVideo(source, { signal: probe.controller.signal });
+      if (videoProbe !== probe || state.active !== record) return;
+      Object.assign(record, metadata);
+      probe.status = metadata.fps ? 'ready' : 'unavailable';
+      renderPlaybackSettings();
+      if (!isGuestReview() && !record.ephemeral && canReview('reviewsEdit')) {
+        record.updatedAt = new Date().toISOString();
+        await saveRecord(record);
+      }
+    } catch (error) {
+      if (videoProbe !== probe || state.active !== record || error.name === 'AbortError') return;
+      if (probe.status === 'ready') { console.warn('Could not save video metadata', error); return; }
+      probe.status = 'unavailable'; probe.error = error.message;
+      renderPlaybackSettings();
+    }
+  }
   async function saveActiveSettings() { if (!state.active || isGuestReview() || state.active.ephemeral) return; state.active.updatedAt = new Date().toISOString(); try { await saveRecord(state.active); } catch { showStatus('No se pudieron guardar los ajustes.'); } }
   function resetView() { state.view = { scale: 1, x: 0, y: 0 }; applyView(); state.model?.fit(); }
   function applyView() { $('#reviewsMediaSurface').style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`; $('#reviewsZoomValue').textContent = `${Math.round(state.view.scale * 100)}%`; }
@@ -628,16 +650,24 @@
     seek.value = video.duration ? String(inFrames ? Math.min(frameIndex(), lastFrameIndex()) : Math.round(currentTime() / video.duration * 1000)) : '0';
     seek.setAttribute('aria-label', inFrames ? `Fotograma ${frameNumber()}; usar flechas para avanzar de a uno` : 'Posición del video en el tiempo');
     $('#reviewsFrameJumpLabel').hidden = !inFrames;
-    if (document.activeElement !== $('#reviewsFrameJump')) $('#reviewsFrameJump').value = String(frameNumber());
+    if (document.activeElement !== $('#reviewsFrameJump')) $('#reviewsFrameJump').value = fps() ? String(frameNumber()) : '';
     $('#reviewsPlayBtn').textContent = video.paused ? '▶' : '❚❚';
     $('#reviewsPlayBtn').setAttribute('aria-label', video.paused ? 'Reproducir' : 'Pausar');
     $('#reviewsMuteBtn').textContent = video.muted ? '×' : '♪';
     $('#reviewsMuteBtn').setAttribute('aria-label', video.muted ? 'Activar sonido' : 'Silenciar');
-    $('#reviewsFrameNumber').textContent = `Fotograma ${frameNumber()}`;
+    $('#reviewsFrameNumber').textContent = fps() ? `Fotograma ${frameNumber()}` : state.active?.fpsMode === 'variable' ? 'FPS variable · regla en tiempo' : 'Fotograma —';
   }
   function renderPlaybackSettings() {
     const record = state.active;
-    $('#reviewsFps').value = String(record?.fps || 24);
+    const rate = Number(record?.fps), hasRate = Number.isFinite(rate) && rate > 0;
+    const label = hasRate ? String(Number(rate.toFixed(3))) : 'Sin detectar';
+    const output = $('#reviewsFps');
+    output.textContent = videoProbe?.status === 'loading' ? 'Detectando…' : record?.fpsMode === 'variable' ? `Variable${hasRate ? ` · ${label} promedio` : ''}` : hasRate ? `${label}${record.fpsMode === 'unknown' ? ' · modo sin confirmar' : ''}` : label;
+    output.dataset.status = videoProbe?.status || 'unavailable';
+    output.title = videoProbe?.error || (record?.fpsMode === 'variable' ? 'El video tiene FPS variable. Un promedio no permite numerar cada fotograma; usá la regla en tiempo.' : hasRate ? `FPS leídos del archivo${record.fpsNumerator && record.fpsDenominator ? `: ${record.fpsNumerator}/${record.fpsDenominator}` : ''}.` : 'No se pudieron leer los FPS del archivo. La reproducción y los comentarios por tiempo siguen disponibles.');
+    const hasFrames = Boolean(fps());
+    $('#reviewsTimelineMode').querySelector('option[value="frames"]').disabled = !hasFrames;
+    for (const id of ['#reviewsPrevFrame', '#reviewsNextFrame', '#reviewsFrameJump', '#reviewsFrameStart']) $(id).disabled = !hasFrames;
     $('#reviewsTimelineMode').value = frameMode() ? 'frames' : 'time';
     $('#reviewsFrameStart').value = String(firstFrame());
     $('#reviewsInValue').textContent = Number.isFinite(record?.inPoint) ? formatTime(record.inPoint) : '—';
@@ -653,6 +683,12 @@
     stopPan();
     state.stopComments?.(); state.stopComments = null;
     stopMedia(); state.active = record; state.mediaCorsFallback = false; state.draft = []; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.activeCommentId = null; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; resetView();
+    if (record.kind === 'video') {
+      // Re-read the original: older versions stored an invented 24, and a Dropbox
+      // file can be replaced while keeping its URL. Never trust a stale default.
+      Object.assign(record, { fps: null, fpsSource: null, fpsMode: 'unknown', fpsNumerator: null, fpsDenominator: null, videoFrameCount: null, videoDuration: null, fpsMetadataVersion: null });
+      videoProbe = { controller: new AbortController(), status: 'loading' };
+    }
     localStorage.setItem(ACTIVE_KEY, id);
     renderList(); renderCommentList();
     $('#reviewsMediaTitle').textContent = record.name;
@@ -673,7 +709,9 @@
     applyReviewPermissions();
     const token = state.shareToken || currentVersion()?.shareToken;
     if (token) {
-      state.stopComments = (await cloud()).watchComments(token, id, comments => {
+      const api = await cloud();
+      if (state.active !== record) return;
+      state.stopComments = api.watchComments(token, id, comments => {
         if (state.active?.id !== id) return;
         state.active.comments = comments;
         renderCommentList(); renderMarkers(); renderList(); redraw();
@@ -691,7 +729,11 @@
           if (state.active?.id !== id) { viewer.dispose(); return; }
           state.model = viewer; return;
         }
-        if (record.kind === 'video') video.src = link.streamUrl; else image.src = link.streamUrl;
+        if (record.kind === 'video') {
+          video.src = link.streamUrl;
+          const fallback = new URL(link.streamUrl); fallback.hostname = 'www.dropbox.com';
+          void detectVideoMetadata(record, { urls: [link.streamUrl, fallback.href] });
+        } else image.src = link.streamUrl;
         updateClock(); renderMarkers(); requestAnimationFrame(resizeCanvas);
         return;
       }
@@ -707,7 +749,7 @@
         return;
       }
       state.mediaUrl = URL.createObjectURL(blob);
-      if (record.kind === 'video') video.src = state.mediaUrl; else image.src = state.mediaUrl;
+      if (record.kind === 'video') { video.src = state.mediaUrl; void detectVideoMetadata(record, { blob }); } else image.src = state.mediaUrl;
       updateClock(); renderMarkers(); requestAnimationFrame(resizeCanvas);
     } catch (error) { showStatus(error.message || 'No se pudo abrir el archivo'); $('#reviewsMediaError').hidden = false; console.error(error); }
   }
@@ -877,7 +919,7 @@
       const blob = await pngBlob(output);
       if (state.active?.id !== record.id) return;
       const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${record.name.replace(/\.[^.]+$/, '')}-${record.kind === 'video' ? `fotograma-${frameNumber()}` : 'captura'}.png`; anchor.click();
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${record.name.replace(/\.[^.]+$/, '')}-${record.kind === 'video' ? fps() ? `fotograma-${frameNumber()}` : `tiempo-${Math.round(currentTime() * 1000)}ms` : 'captura'}.png`; anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       showStatus('Captura PNG descargada.');
     } catch (error) {
@@ -1258,8 +1300,9 @@
         const knownProjects = new Set([...remoteProjects, ...importedProjects].map(project => project.id));
         const importedFiles = window.STUDIO_ROLE === 'admin' ? state.records.filter(record => record.source === 'dropbox' && knownProjects.has(record.projectId) && !remoteFileIds.has(record.id)) : [];
         for (const record of importedFiles) await api.saveStaffFile(record);
+        const localFiles = window.STUDIO_ROLE === 'admin' ? state.records.filter(record => record.source !== 'dropbox' && knownProjects.has(record.projectId)) : [];
         state.projects = [...remoteProjects, ...importedProjects];
-        state.records = [...remoteFiles, ...importedFiles];
+        state.records = [...remoteFiles, ...importedFiles, ...localFiles];
         const shares = await api.listSharedReviews(clientOnly ? window.STUDIO_REVIEW_TOKENS || [] : null);
         if (accessKey !== hydratedUserUid || !canEnterReviews()) return;
         for (const share of shares) {
@@ -1299,11 +1342,10 @@
   $('#reviewsInBtn').addEventListener('click', () => setRangePoint('in'));
   $('#reviewsOutBtn').addEventListener('click', () => setRangePoint('out'));
   $('#reviewsClearRange').addEventListener('click', () => { if (!isVideo()) return; state.active.inPoint = null; state.active.outPoint = null; renderPlaybackSettings(); saveActiveSettings(); });
-  $('#reviewsTimelineMode').addEventListener('change', event => { if (!isVideo()) return; state.active.timelineMode = event.target.value === 'frames' ? 'frames' : 'time'; renderPlaybackSettings(); saveActiveSettings(); });
+  $('#reviewsTimelineMode').addEventListener('change', event => { if (!isVideo()) return; state.active.timelineMode = event.target.value === 'frames' && fps() ? 'frames' : 'time'; renderPlaybackSettings(); saveActiveSettings(); });
   $('#reviewsPrevFrame').addEventListener('click', () => stepFrame(-1));
   $('#reviewsNextFrame').addEventListener('click', () => stepFrame(1));
   $('#reviewsFrameJump').addEventListener('change', event => { if (!isVideo()) return; seekFrame(Number(event.target.value) - firstFrame()); });
-  $('#reviewsFps').addEventListener('change', event => { if (!isVideo()) return; state.active.fps = Number(event.target.value); renderPlaybackSettings(); saveActiveSettings(); });
   $('#reviewsFrameStart').addEventListener('change', event => { if (!isVideo()) return; state.active.frameStart = Math.max(0, Math.min(9999999, Math.round(Number(event.target.value) || 0))); renderPlaybackSettings(); saveActiveSettings(); });
   $('#reviewsFitBtn').addEventListener('click', resetView);
   $('#reviewsScreenshotBtn').addEventListener('click', screenshot);
