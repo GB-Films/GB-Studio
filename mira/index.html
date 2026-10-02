@@ -12,7 +12,6 @@
     <meta property="og:locale" content="es_AR" />
     <meta property="og:title" content="MIRA · Una review, todas las devoluciones." />
     <meta property="og:description" content="Mirá el material y dejá tus comentarios. Fotos, videos y feedback, todo en un mismo lugar." />
-    <meta property="og:url" content="https://gb-films.github.io/GB-Studio/mira/" />
     <meta property="og:image" content="https://gb-films.github.io/GB-Studio/assets/gb-films-icon.png?v=2" />
     <meta property="og:image:secure_url" content="https://gb-films.github.io/GB-Studio/assets/gb-films-icon.png?v=2" />
     <meta property="og:image:type" content="image/png" />
@@ -30,30 +29,32 @@
       main { max-width:440px; padding:32px; text-align:center; }
       h1 { margin:0 0 20px; font-size:72px; letter-spacing:-5px; }
       p { color:#aaa; line-height:1.6; }
-      a { display:inline-block; margin-top:12px; padding:14px 24px; border:1px solid #ef714d; color:#ef714d; text-decoration:none; }
     </style>
-    <script src="../firebase-config.js?v=2"></script>
-    <script type="module">
-      import { resolveShareHash } from '../reviews-links.js?v=2';
-      try {
-        const target = new URL('../', location.href);
-        target.searchParams.set('app', 'reviews');
-        target.hash = await resolveShareHash(location.hash, async alias => {
-          const { getReviewAlias } = await import('../reviews-cloud.js?v=9');
-          return getReviewAlias(alias);
-        });
-        location.replace(target.href);
-      } catch {
-        document.getElementById('status').textContent = 'No se pudo abrir este enlace. Revisá tu conexión o pedí al equipo que confirme que la review sigue compartida.';
-      }
-    </script>
   </head>
   <body>
     <main>
       <h1>MIRA</h1>
       <p id="status">Abriendo la review…</p>
-      <a href="../?app=reviews">Abrir MIRA</a>
       <noscript><p>Activá JavaScript para abrir el material compartido.</p></noscript>
     </main>
+    <script type="module">
+      import { expandShareHash, isShareAlias } from '../reviews-links.js?v=3';
+      try {
+        const target = new URL('../', location.href);
+        target.searchParams.set('app', 'reviews');
+        const alias = location.hash.startsWith('#/') ? location.hash.slice(2) : new URLSearchParams(location.search).get('link');
+        if (alias !== null) {
+          if (!isShareAlias(alias)) throw new Error('El nombre del enlace no es válido.');
+          target.searchParams.set('link', alias);
+        } else {
+          const hash = expandShareHash(location.hash);
+          if (!hash) throw new Error('El enlace está incompleto.');
+          target.hash = hash;
+        }
+        location.replace(target.href);
+      } catch {
+        document.getElementById('status').textContent = 'Este enlace está incompleto o no es válido. Pedí al equipo que te comparta la review nuevamente.';
+      }
+    </script>
   </body>
 </html>

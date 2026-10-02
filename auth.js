@@ -26,7 +26,7 @@ for (const [id, app] of [['homeCompiLink', 'compi'], ['homePdrLink', 'pdr']]) {
 // connected to the correct Firebase project without putting project-specific
 // credentials in the source code by accident.
 const firebaseConfig = window.STORYBOARD_FIREBASE_CONFIG;
-const publicReview = new URLSearchParams(location.hash.slice(1)).has('share') || new URLSearchParams(location.hash.slice(1)).has('review');
+const publicReview = new URLSearchParams(location.search).has('link') || new URLSearchParams(location.hash.slice(1)).has('share') || new URLSearchParams(location.hash.slice(1)).has('review');
 const reviewsEntry = document.documentElement.dataset.studioApp === 'reviews';
 const pdrEntry = document.documentElement.dataset.studioApp === 'pdr';
 const homeEntry = document.documentElement.dataset.studioApp === 'home';
@@ -215,7 +215,7 @@ if (!firebaseConfig?.apiKey || !firebaseConfig?.authDomain || !firebaseConfig?.p
     const [{ initializeApp }, { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut }, cloud] = await Promise.all([
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js'),
       import('https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js'),
-      import('./reviews-cloud.js?v=9'),
+      import('./reviews-cloud.js?v=11'),
     ]);
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);

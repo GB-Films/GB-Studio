@@ -34,18 +34,13 @@ const server = http.createServer((request, response) => {
       await page.goto(origin + '/mira/#' + token + '.ANz0q1bQQ9q8g2KXYvPJfg');
       await page.waitForURL(origin + '/?app=reviews#share=' + token + '&file=00dcf4ab-56d0-43da-bc83-629762f3c97e');
     }
-    await page.route('**/reviews-cloud.js*', route => route.fulfill({ contentType: 'text/javascript', body: `
-      export async function getReviewAlias(alias) {
-        if (alias !== 'qm-0003-stella-cartel-montaje-v1') throw Error('Unavailable');
-        return { token: '${'C'.repeat(22)}', fileId: 'client-video' };
-      }` }));
     await page.goto(origin + '/mira/#/qm-0003-stella-cartel-montaje-v1');
-    await page.waitForURL(origin + '/?app=reviews#share=' + 'C'.repeat(22) + '&file=client-video');
-    await page.goto(origin + '/mira/#/unknown-project');
-    await page.locator('#status').filter({ hasText: 'No se pudo abrir este enlace' }).waitFor();
-    assert.match(page.url(), /mira\/#\/unknown-project$/);
+    await page.waitForURL(origin + '/?app=reviews&link=qm-0003-stella-cartel-montaje-v1');
+    await page.goto(origin + '/mira/');
+    await page.locator('#status').filter({ hasText: 'Este enlace está incompleto' }).waitFor();
+    assert.equal(await page.getByRole('link', { name: 'Abrir MIRA' }).count(), 0);
     await page.goto(origin + '/mira/#invalid');
-    await page.locator('#status').filter({ hasText: 'No se pudo abrir este enlace' }).waitFor();
-    console.log('MIRA preview passed: official GB-only icon, square metadata, named/legacy redirects and unavailable links.');
+    await page.locator('#status').filter({ hasText: 'Este enlace está incompleto' }).waitFor();
+    console.log('MIRA preview passed: official GB-only icon, named/legacy redirects and incomplete links.');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

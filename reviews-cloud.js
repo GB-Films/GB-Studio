@@ -2,7 +2,7 @@
 import { getApps, getApp, initializeApp } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, runTransaction } from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js';
-import { createShareToken, isShareToken, isShareAlias, shareAliasBase, sameShareTarget, reserveShareAlias } from './reviews-links.js?v=2';
+import { createShareToken, isShareToken, isShareAlias, shareAliasBase, sameShareTarget, reserveShareAlias } from './reviews-links.js?v=3';
 
 const app = getApps().length ? getApp() : initializeApp(window.STORYBOARD_FIREBASE_CONFIG);
 const db = getFirestore(app);

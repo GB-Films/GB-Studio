@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="GB Studio: Visto, Mira, Compi y próximamente PDR para los proyectos de GB Films." />
     <meta name="theme-color" content="#111111" />
+    <meta name="referrer" content="no-referrer" />
     <title>GB Studio · Inicio</title>
     <script>
       const sharedReviewLink = new URLSearchParams(location.hash.slice(1));
-      if ((sharedReviewLink.has('share') || sharedReviewLink.has('review')) && new URLSearchParams(location.search).get('app') !== 'reviews') {
+      if ((sharedReviewLink.has('share') || sharedReviewLink.has('review') || new URLSearchParams(location.search).has('link')) && new URLSearchParams(location.search).get('app') !== 'reviews') {
         const reviewsUrl = new URL(location.href);
         reviewsUrl.searchParams.set('app', 'reviews');
         location.replace(reviewsUrl.href);
@@ -307,7 +308,7 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
     <script src="app.js?v=76"></script>
-    <script src="reviews.js?v=34"></script>
+    <script src="reviews.js?v=35"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {
@@ -319,6 +320,6 @@
         appId: '1:475470109485:web:c4400a214f973223aa91a4',
       };
     </script>
-    <script type="module" src="auth.js?v=28"></script>
+    <script type="module" src="auth.js?v=29"></script>
   </body>
 </html>
