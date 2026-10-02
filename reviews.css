@@ -1,7 +1,6 @@
 /* Studio navigation is available from every workspace. */
 .studio-nav { display:flex; align-items:stretch; align-self:stretch; gap:3px; }
 .studio-nav-link { position:relative; display:flex; align-items:center; padding:0 14px; border:0; color:#aaa; background:transparent; font:500 11px 'DM Mono',monospace; text-decoration:none; text-transform:uppercase; letter-spacing:.6px; }
-.mira-nav-logo { width:24px; height:24px; margin-right:7px; }
 .studio-nav-link:hover,.studio-nav-link.is-active { color:#fff; }
 .studio-nav-link[hidden] { display:none!important; }
 .studio-nav-link.is-active::after { position:absolute; right:12px; bottom:0; left:12px; height:2px; background:#fff; content:''; }
@@ -17,8 +16,6 @@ html[data-studio-app="home"] #homeNav::after { position:absolute; right:12px; bo
 .reviews-home-top { display:flex; align-items:flex-end; justify-content:space-between; gap:25px; margin-bottom:46px; }
 .reviews-home-top .eyebrow,.reviews-home-heading,.reviews-home-card-tag,.reviews-project-context,#reviewsProjectMeta { font:10px 'DM Mono',monospace; letter-spacing:.08em; }
 .reviews-home-top .eyebrow { color:#777; }
-.reviews-home-brand { display:inline-flex; align-items:center; gap:9px; }
-.reviews-home-brand img { width:27px; height:27px; }
 .reviews-home-top h1 { margin:13px 0 10px; font:600 clamp(36px,4.5vw,64px)/1 'Space Grotesk',sans-serif; letter-spacing:-.055em; }
 .reviews-home-top p { max-width:570px; margin:0; color:#666; font-size:14px; line-height:1.55; }
 .reviews-home-create,#reviewsCreateVersion { flex:none; min-height:46px; padding:0 18px; border:1px solid #111; background:#111; color:#fff; font:600 12px 'Space Grotesk',sans-serif; cursor:pointer; }
