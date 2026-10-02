@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="title">
-  <title id="title">Mira: una M con un ojo</title>
+  <title id="title">Mira: M angular con pupila horizontal</title>
   <rect width="64" height="64" fill="#111111"/>
-  <path d="M10 49V15L23 34L32 22L41 34L54 15V49" fill="none" stroke="#ffffff" stroke-width="5.5" stroke-linecap="square" stroke-linejoin="round"/>
-  <path d="M21 40Q32 29 43 40Q32 51 21 40Z" fill="#111111" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
-  <circle cx="32" cy="40" r="3.5" fill="#e86f4c"/>
+  <path d="M11 50V15L27 37M53 50V15L37 37" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M19 39L25 34H39L45 39L39 44H25Z" fill="#111111" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="miter"/>
+  <rect x="26" y="37.5" width="12" height="3" rx=".5" fill="#e86f4c"/>
 </svg>
