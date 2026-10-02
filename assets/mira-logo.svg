@@ -1,7 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="title">
-  <title id="title">Mira: M angular con pupila horizontal</title>
+  <title id="title">Mira: ojo con pupila horizontal delante de una M</title>
   <rect width="64" height="64" fill="#111111"/>
-  <path d="M11 50V15L27 37M53 50V15L37 37" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
-  <path d="M19 39L25 34H39L45 39L39 44H25Z" fill="#111111" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="miter"/>
-  <rect x="26" y="37.5" width="12" height="3" rx=".5" fill="#e86f4c"/>
+  <path d="M11 28L13 9L26 24ZM53 28L51 9L38 24Z" fill="#f6f4ef"/>
+  <path d="M13 41H21V59H13ZM43 41H51V59H43Z" fill="#f6f4ef"/>
+  <ellipse cx="32" cy="37" rx="26" ry="15" fill="#f6f4ef"/>
+  <ellipse cx="32" cy="37" rx="22" ry="11" fill="#e86f4c"/>
+  <rect x="20" y="33" width="24" height="8" rx="1" fill="#111111"/>
 </svg>
