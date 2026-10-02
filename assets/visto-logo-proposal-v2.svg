@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1280" viewBox="0 0 1280 1280" role="img" aria-labelledby="title desc">
+  <title id="title">Visto</title>
+  <desc id="desc">Cuadro de storyboard con bordes suaves y un tic en el naranja oficial de GB Studio.</desc>
+  <rect width="1280" height="1280" fill="#f7f6f3"/>
+  <rect x="216" y="233" width="848" height="597" rx="44" fill="#ffffff"/>
+  <path d="M1064 580V277q0-44-44-44H260q-44 0-44 44v509q0 44 44 44h510" fill="none" stroke="#111111" stroke-width="60" stroke-linecap="round"/>
+  <circle cx="448" cy="412" r="76" fill="#111111"/>
+  <path d="M283 724v-17q0-18 14-32l131-115q30-28 59 0l60 57q28 28 55-2l130-148q34-38 69 2l175 191q18 19 3 39l-56 65q-9 12-27 12H315q-32 0-32-32z" fill="#111111"/>
+  <path d="M218 944h436M218 1048h308" fill="none" stroke="#111111" stroke-width="60" stroke-linecap="round"/>
+  <path d="M747 820l106 114 264-279" fill="none" stroke="#f7f6f3" stroke-width="168" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M747 820l106 114 264-279" fill="none" stroke="#ff6b2b" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

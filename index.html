@@ -31,9 +31,9 @@
         document.querySelector('meta[name="description"]').content = 'GB Studio PDR: organizá tus planes de rodaje.';
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=57" />
-    <link rel="stylesheet" href="reviews.css?v=24" />
-    <link rel="stylesheet" href="home.css?v=11" />
+    <link rel="stylesheet" href="styles.css?v=58" />
+    <link rel="stylesheet" href="reviews.css?v=25" />
+    <link rel="stylesheet" href="home.css?v=12" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
   </head>
   <body class="auth-locked">
@@ -241,7 +241,7 @@
             <label>DIRECTOR<input id="reviewsEntityDirector" type="text" maxlength="100" placeholder="Opcional" /></label>
             <fieldset class="reviews-cover-fields"><legend>PORTADA DEL PROYECTO</legend>
               <div class="reviews-cover-layout">
-                <div class="reviews-cover-preview is-color" id="reviewsCoverPreview" aria-hidden="true" style="background-color:#e86f4c"><img id="reviewsCoverPreviewImage" alt="" hidden /></div>
+                <div class="reviews-cover-preview is-color" id="reviewsCoverPreview" aria-hidden="true" style="background-color:#ff6b2b"><img id="reviewsCoverPreviewImage" alt="" hidden /></div>
                 <div class="reviews-cover-settings">
                   <div class="reviews-cover-options" role="group" aria-label="Tipo de portada">
                     <label><input type="radio" name="reviewsCoverType" value="image" /> Imagen</label>
@@ -249,7 +249,7 @@
                   </div>
                   <label class="reviews-cover-control" id="reviewsCoverImageRow" hidden>SUBIR IMAGEN<input id="reviewsCoverFile" type="file" accept="image/*" /></label>
                   <div class="reviews-cover-control" id="reviewsCoverColorRow" hidden><span>COLOR</span><div class="reviews-cover-palette" role="group" aria-label="Colores para la portada">
-                    <button type="button" data-cover-color="#e86f4c" aria-label="Coral" title="Coral" style="--swatch:#e86f4c"></button>
+                    <button type="button" data-cover-color="#ff6b2b" aria-label="Naranja GB Studio" title="Naranja GB Studio" style="--swatch:#ff6b2b"></button>
                     <button type="button" data-cover-color="#f2b84b" aria-label="Amarillo" title="Amarillo" style="--swatch:#f2b84b"></button>
                     <button type="button" data-cover-color="#8dbb6a" aria-label="Verde" title="Verde" style="--swatch:#8dbb6a"></button>
                     <button type="button" data-cover-color="#40a69b" aria-label="Turquesa" title="Turquesa" style="--swatch:#40a69b"></button>
@@ -259,7 +259,7 @@
                     <button type="button" data-cover-color="#d75f62" aria-label="Rojo" title="Rojo" style="--swatch:#d75f62"></button>
                     <button type="button" data-cover-color="#876d53" aria-label="Marrón" title="Marrón" style="--swatch:#876d53"></button>
                     <button type="button" data-cover-color="#30343f" aria-label="Grafito" title="Grafito" style="--swatch:#30343f"></button>
-                    <label class="reviews-cover-custom" title="Elegir otro color"><span aria-hidden="true">＋</span><input id="reviewsCoverColor" type="color" value="#e86f4c" aria-label="Elegir otro color" /></label>
+                    <label class="reviews-cover-custom" title="Elegir otro color"><span aria-hidden="true">＋</span><input id="reviewsCoverColor" type="color" value="#ff6b2b" aria-label="Elegir otro color" /></label>
                   </div></div>
                   <p id="reviewsCoverMessage" role="status" aria-live="polite"></p>
                 </div>
@@ -310,7 +310,7 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
     <script src="app.js?v=76"></script>
-    <script src="reviews.js?v=35"></script>
+    <script src="reviews.js?v=36"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {

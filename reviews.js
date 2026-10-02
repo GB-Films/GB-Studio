@@ -4,7 +4,7 @@
   const $ = selector => document.querySelector(selector);
   const DB_NAME = 'gb-studio-reviews-v1';
   const ACTIVE_KEY = 'gb-studio-reviews-active-v1';
-  const DEFAULT_COVER_COLOR = '#e86f4c';
+  const DEFAULT_COVER_COLOR = '#ff6b2b';
   const HOME_VIEW_KEY = 'gb-studio-reviews-home-view';
   const HOME_SORT_KEY = 'gb-studio-reviews-home-sort';
   let homeView = localStorage.getItem(HOME_VIEW_KEY) === 'list' ? 'list' : 'grid';
