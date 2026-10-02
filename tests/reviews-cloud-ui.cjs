@@ -129,20 +129,40 @@ const fakeFirebaseAuth = `
     await authorize();
     await page.locator('#reviewsNav').click();
     await page.locator('#reviewsCreateProject').click();
+    assert.equal(await page.locator('input[name="reviewsCoverType"][value="color"]').isChecked(), true, 'new projects select a solid color by default');
+    assert.equal(await page.locator('#reviewsCoverColor').isVisible(), true);
+    assert.equal(await page.locator('#reviewsCoverPreview').evaluate(preview => getComputedStyle(preview).backgroundColor), 'rgb(232, 111, 76)');
     await page.locator('#reviewsEntityTitle').fill('Proyecto sincronizado');
     await page.locator('#reviewsEntityClient').fill('Cliente');
     await page.locator('#reviewsEntityForm button[type=submit]').click();
-    const addProject = async (title, client) => {
+    await page.waitForFunction(() => Boolean(localStorage.getItem('test-cloud-projects')));
+    assert.deepEqual(await page.evaluate(() => {
+      const project = JSON.parse(localStorage.getItem('test-cloud-projects'))[0];
+      return [project.coverType, project.coverColor];
+    }), ['color', '#e86f4c'], 'the default cover color is saved with the project');
+    const addProject = async (title, client, color = '') => {
       await page.locator('#reviewsBackProjects').click();
       await page.locator('#reviewsCreateProject').click();
+      if (color) await page.locator('#reviewsCoverColor').fill(color);
       await page.locator('#reviewsEntityTitle').fill(title);
       await page.locator('#reviewsEntityClient').fill(client);
       await page.locator('#reviewsEntityForm button[type=submit]').click();
+      await page.waitForFunction(name => JSON.parse(localStorage.getItem('test-cloud-projects') || '[]').some(project => project.title === name), title);
     };
-    await addProject('Zeta', 'Agencia C');
+    await addProject('Zeta', 'Agencia C', '#35678a');
     await addProject('Alfa', 'Cliente A');
-    await page.locator('#reviewsBackProjects').click();
+    await page.evaluate(() => {
+      const projects = JSON.parse(localStorage.getItem('test-cloud-projects'));
+      const legacy = projects.find(project => project.title === 'Alfa');
+      legacy.coverType = 'default'; delete legacy.coverColor;
+      localStorage.setItem('test-cloud-projects', JSON.stringify(projects));
+    });
+    await page.goto(reviewsUrl); await authorize(); await page.locator('#reviewsNav').click();
     assert.equal(await page.locator('#reviewsHomeGrid .is-project-card').count(), 3);
+    const coverColor = async title => page.locator('#reviewsHomeGrid .reviews-home-card').filter({ hasText: title }).locator('.reviews-home-card-cover').evaluate(cover => getComputedStyle(cover).backgroundColor);
+    assert.equal(await coverColor('Alfa'), 'rgb(232, 111, 76)', 'older automatic MIRA covers now display the default color');
+    assert.equal(await coverColor('Zeta'), 'rgb(53, 103, 138)', 'a chosen project color stays intact');
+    assert.equal(await page.locator('#reviewsHomeGrid .reviews-home-card-cover').getByText('MIRA').count(), 0, 'the old MIRA artwork is gone');
     await page.locator('#reviewsHomeListView').click();
     assert.equal(await page.locator('#reviewsHomeGrid').evaluate(grid => grid.classList.contains('is-list-view')), true, 'projects can be displayed one below another');
     assert.ok((await page.locator('#reviewsHomeGrid .reviews-home-card').first().boundingBox()).height < 100, 'list rows are compact');
