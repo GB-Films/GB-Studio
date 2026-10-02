@@ -63,6 +63,16 @@ const fakeCloud = `
   export async function getSharedReview(token) { const share = load('published').find(item => item.token === token); if (!share) throw new Error('Unknown share'); return share; }
   export async function guestIdentity() { return { uid: window.STUDIO_USER?.uid || 'anonymous-test' }; }
   export async function addSharedComment(token, fileId, comment, authorName) { save('comments', [...load('comments'), { ...comment, fileId, authorUid: (await guestIdentity()).uid, authorName }]); commentWatchers.get(fileId)?.(load('comments').filter(item => item.fileId === fileId)); }
+  export async function editOwnSharedComment(token, fileId, id, text) {
+    const comment = load('comments').find(item => item.id === id && item.fileId === fileId);
+    if (window.failCommentEdit || comment?.authorUid !== (await guestIdentity()).uid) throw new Error('permission-denied');
+    save('comments', load('comments').map(item => item.id === id && item.fileId === fileId ? { ...item, text } : item));
+    commentWatchers.get(fileId)?.(load('comments').filter(item => item.fileId === fileId));
+  }
+  export async function changeSharedComment(token, fileId, comment) {
+    save('comments', load('comments').map(item => item.id === comment.id && item.fileId === fileId ? { ...item, resolved: comment.resolved } : item));
+    commentWatchers.get(fileId)?.(load('comments').filter(item => item.fileId === fileId));
+  }
   export async function deleteSharedComment(token, fileId, id) {
     const comment = load('comments').find(item => item.id === id && item.fileId === fileId);
     if (window.failCommentDelete || comment?.authorUid !== (await guestIdentity()).uid) throw new Error('permission-denied');
@@ -122,6 +132,35 @@ const fakeFirebaseAuth = `
     await page.locator('#reviewsEntityTitle').fill('Proyecto sincronizado');
     await page.locator('#reviewsEntityClient').fill('Cliente');
     await page.locator('#reviewsEntityForm button[type=submit]').click();
+    const addProject = async (title, client) => {
+      await page.locator('#reviewsBackProjects').click();
+      await page.locator('#reviewsCreateProject').click();
+      await page.locator('#reviewsEntityTitle').fill(title);
+      await page.locator('#reviewsEntityClient').fill(client);
+      await page.locator('#reviewsEntityForm button[type=submit]').click();
+    };
+    await addProject('Zeta', 'Agencia C');
+    await addProject('Alfa', 'Cliente A');
+    await page.locator('#reviewsBackProjects').click();
+    assert.equal(await page.locator('#reviewsHomeGrid .is-project-card').count(), 3);
+    await page.locator('#reviewsHomeListView').click();
+    assert.equal(await page.locator('#reviewsHomeGrid').evaluate(grid => grid.classList.contains('is-list-view')), true, 'projects can be displayed one below another');
+    assert.ok((await page.locator('#reviewsHomeGrid .reviews-home-card').first().boundingBox()).height < 100, 'list rows are compact');
+    await page.locator('#reviewsHomeSort').selectOption('name');
+    assert.deepEqual(await page.locator('#reviewsHomeGrid .is-project-card strong').allTextContents(), ['Alfa', 'Proyecto sincronizado', 'Zeta'], 'projects sort by name');
+    await page.locator('#reviewsHomeSort').selectOption('client');
+    assert.equal(await page.locator('#reviewsHomeGrid .is-project-card strong').first().textContent(), 'Zeta', 'projects can sort by client');
+    await page.locator('#reviewsHomeClientFilter').selectOption({ label: 'Cliente A' });
+    assert.deepEqual(await page.locator('#reviewsHomeGrid .is-project-card strong').allTextContents(), ['Alfa'], 'projects can be filtered by client');
+    assert.equal(await page.locator('#reviewsHomeCount').textContent(), '1 de 3 proyectos');
+    await page.locator('#reviewsHomeClientFilter').selectOption('all');
+    if (process.env.REVIEWS_HOME_LIST_SCREENSHOT) await page.screenshot({ path: process.env.REVIEWS_HOME_LIST_SCREENSHOT, fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'project list and controls fit a phone');
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.locator('#reviewsHomeGridView').click();
+    assert.equal(await page.locator('#reviewsHomeGrid').evaluate(grid => grid.classList.contains('is-list-view')), false, 'card view remains available');
+    await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Proyecto sincronizado' }).click();
     await page.locator('#reviewsHomeGrid .reviews-home-card-open').filter({ hasText: 'Montaje · V1' }).click();
     await page.locator('#reviewsLinkBtn').click();
     await page.locator('#reviewsLinkUrl').fill('https://www.dropbox.com/scl/fi/test/foto.jpg?rlkey=test');
@@ -311,7 +350,18 @@ const fakeFirebaseAuth = `
     await namedGuest.keyboard.press('Control+z');
     assert.equal(await namedGuest.locator('#reviewsCanvas').evaluate(canvas => canvas.toDataURL()), savedDrawing, 'Ctrl+Z restores a selected saved annotation');
     assert.match(await namedGuest.locator('.reviews-comment-meta').textContent(), /Roberto/);
-    assert.equal(await namedGuest.locator('.reviews-comment-actions button').count(), 1, 'a named guest can delete their own feedback but cannot resolve it');
+    assert.deepEqual(await namedGuest.locator('.reviews-comment-actions button').allTextContents(), ['Editar', 'Eliminar'], 'a named guest can edit or delete their own feedback but cannot resolve it');
+    await namedGuest.getByRole('button', { name: 'Editar comentario de Roberto' }).click();
+    if (process.env.REVIEWS_COMMENT_EDIT_SCREENSHOT) await namedGuest.screenshot({ path: process.env.REVIEWS_COMMENT_EDIT_SCREENSHOT, fullPage: true });
+    await namedGuest.getByRole('textbox', { name: 'Editar tu comentario' }).fill('Cambio descartado');
+    await namedGuest.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    assert.match(await namedGuest.locator('.reviews-comment-text').textContent(), /Ajustar color/, 'cancel does not change the comment');
+    await namedGuest.getByRole('button', { name: 'Editar comentario de Roberto' }).click();
+    await namedGuest.getByRole('textbox', { name: 'Editar tu comentario' }).fill('Ajustar color y contraste');
+    await namedGuest.getByRole('button', { name: 'Guardar cambios' }).click();
+    await namedGuest.waitForFunction(() => JSON.parse(localStorage.getItem('test-cloud-comments'))[0].text === 'Ajustar color y contraste');
+    assert.equal(await namedGuest.locator('.reviews-comment-text').textContent(), 'Ajustar color y contraste');
+    assert.equal(await namedGuest.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-comments'))[0].strokes.length), 4, 'editing text preserves the drawing');
     await namedGuest.close();
     const googleGuest = await context.newPage(); googleGuest.on('pageerror', error => errors.push(error.message));
     await googleGuest.goto(shareUrl);
@@ -322,8 +372,14 @@ const fakeFirebaseAuth = `
     await googleGuest.locator('#reviewsCommentText').fill('Revisar final');
     await googleGuest.locator('#reviewsCommentForm button[type=submit]').click();
     await googleGuest.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '2');
-    assert.equal(await googleGuest.locator('.reviews-comment-actions button').count(), 1, 'a Google review guest only sees deletion for their own comment');
+    assert.equal(await googleGuest.locator('.reviews-comment-actions button').count(), 2, 'a Google review guest can edit and delete only their own comment');
     assert.deepEqual(await googleGuest.evaluate(() => JSON.parse(localStorage.getItem('test-cloud-comments')).map(comment => comment.authorName)), ['Roberto', 'Cliente Google']);
+    assert.equal(await googleGuest.locator('.reviews-comment').filter({ hasText: 'Roberto' }).getByRole('button', { name: /Editar comentario/ }).count(), 0, 'another user cannot edit Roberto’s comment');
+    assert.equal(await googleGuest.evaluate(async () => {
+      const comment = JSON.parse(localStorage.getItem('test-cloud-comments'))[0];
+      try { await (await import('./reviews-cloud.js?v=10')).editOwnSharedComment('A'.repeat(43), comment.fileId, comment.id, 'Intento ajeno'); return false; }
+      catch { return true; }
+    }), true, 'the backend rejects another user’s edit');
     assert.equal(await googleGuest.locator('.reviews-comment').filter({ hasText: 'Roberto' }).getByRole('button', { name: 'Eliminar', exact: true }).count(), 0, 'cannot delete another guest with the same shared link');
     await googleGuest.getByRole('button', { name: 'Eliminar', exact: true }).click();
     await googleGuest.locator('#reviewsConfirmCancel').click();
@@ -337,7 +393,16 @@ const fakeFirebaseAuth = `
     await returningGuest.goto(shareUrl);
     await returningGuest.locator('#reviewsGuestName').fill('Roberto');
     await returningGuest.locator('#reviewsGuestLogin').click();
-    await returningGuest.locator('.reviews-comment-actions button').waitFor();
+    await returningGuest.locator('.reviews-comment-actions button').first().waitFor();
+    await returningGuest.getByRole('button', { name: 'Editar comentario de Roberto' }).click();
+    await returningGuest.getByRole('textbox', { name: 'Editar tu comentario' }).fill('Edición recuperada en otra pestaña');
+    await returningGuest.evaluate(() => { window.failCommentEdit = true; });
+    await returningGuest.getByRole('button', { name: 'Guardar cambios' }).click();
+    await returningGuest.waitForFunction(() => /Tu texto sigue acá/.test(document.querySelector('#reviewsCommentContext').textContent));
+    assert.equal(await returningGuest.getByRole('textbox', { name: 'Editar tu comentario' }).inputValue(), 'Edición recuperada en otra pestaña', 'a failed edit keeps the draft');
+    await returningGuest.evaluate(() => { window.failCommentEdit = false; });
+    await returningGuest.getByRole('button', { name: 'Guardar cambios' }).click();
+    await returningGuest.waitForFunction(() => JSON.parse(localStorage.getItem('test-cloud-comments'))[0].text === 'Edición recuperada en otra pestaña');
     await returningGuest.locator('.reviews-comment-open').click();
     await returningGuest.evaluate(() => { window.failCommentDelete = true; });
     await returningGuest.getByRole('button', { name: 'Eliminar', exact: true }).click();
@@ -398,6 +463,22 @@ const fakeFirebaseAuth = `
     assert.equal(await videoGuest.locator('#reviewsVideo').evaluate(video => video.paused), true, 'middle-button drag does not toggle video playback');
     await videoGuest.keyboard.press('h');
     await videoGuest.waitForFunction(() => document.querySelector('#reviewsFps').dataset.status !== 'loading');
+    await videoGuest.locator('#reviewsGuestName').fill('Montajista');
+    await videoGuest.locator('#reviewsGuestLogin').click();
+    await videoGuest.locator('#reviewsDrawBtn').click();
+    assert.equal(await videoGuest.locator('#reviewsDrawBtn').getAttribute('aria-pressed'), 'true');
+    await videoGuest.locator('#reviewsSeek').evaluate(seek => { seek.value = '500'; seek.dispatchEvent(new Event('input', { bubbles: true })); });
+    assert.equal(await videoGuest.locator('#reviewsDrawBtn').getAttribute('aria-pressed'), 'true', 'scrubbing to another moment keeps the brush selected');
+    assert.equal(await videoGuest.locator('#reviewsCanvas').evaluate(canvas => canvas.classList.contains('is-drawing')), true, 'the brush can draw immediately after scrubbing');
+    await videoGuest.locator('#reviewsVideo').evaluate(video => { video.loop = true; });
+    await videoGuest.locator('#reviewsPlayBtn').click();
+    await videoGuest.waitForFunction(() => !document.querySelector('#reviewsVideo').paused && !document.querySelector('#reviewsCanvas').classList.contains('is-drawing'));
+    assert.equal(await videoGuest.locator('#reviewsDrawBtn').getAttribute('aria-pressed'), 'true', 'playback does not deselect the brush');
+    assert.equal(await videoGuest.locator('#reviewsCanvas').evaluate(canvas => canvas.classList.contains('is-drawing')), false, 'drawing is suspended while the video plays');
+    await videoGuest.locator('#reviewsPlayBtn').click();
+    await videoGuest.waitForFunction(() => document.querySelector('#reviewsVideo').paused && document.querySelector('#reviewsCanvas').classList.contains('is-drawing'));
+    assert.equal(await videoGuest.locator('#reviewsDrawBtn').getAttribute('aria-pressed'), 'true');
+    assert.equal(await videoGuest.locator('#reviewsCanvas').evaluate(canvas => canvas.classList.contains('is-drawing')), true, 'drawing resumes when playback pauses');
     await rejectTabCapture(videoGuest);
     const frameDownload = videoGuest.waitForEvent('download');
     await videoGuest.locator('#reviewsScreenshotBtn').click();
@@ -487,6 +568,14 @@ const fakeFirebaseAuth = `
     await page.locator('#reviewsCommentForm').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#reviewsRemoveMedia').isVisible(), false, 'an assigned client cannot remove files');
     assert.equal(await page.locator('.reviews-comment-actions').count(), 0, 'an assigned client cannot delete or resolve comments');
+    await page.locator('#reviewsCommentText').fill('Comentario del cliente asignado');
+    await page.locator('#reviewsCommentForm button[type=submit]').click();
+    await page.waitForFunction(() => document.querySelector('#reviewsCommentCount').textContent === '1');
+    const ownClientComment = page.locator('.reviews-comment').filter({ hasText: 'Comentario del cliente asignado' });
+    await ownClientComment.getByRole('button', { name: /Editar comentario/ }).click();
+    await ownClientComment.getByRole('textbox', { name: 'Editar tu comentario' }).fill('Comentario corregido del cliente');
+    await ownClientComment.getByRole('button', { name: 'Guardar cambios' }).click();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('test-cloud-comments')).some(comment => comment.text === 'Comentario corregido del cliente'));
     assert.equal(await page.locator('.reviews-file[draggable="true"]').count(), 0, 'an assigned client cannot rearrange files');
     assert.deepEqual(errors, []);
     console.log('Cloud UI passed: shared-file links, guest and Google comments, read-only client access, video download, and project sync.');

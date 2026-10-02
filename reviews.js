@@ -4,7 +4,12 @@
   const $ = selector => document.querySelector(selector);
   const DB_NAME = 'gb-studio-reviews-v1';
   const ACTIVE_KEY = 'gb-studio-reviews-active-v1';
-  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, mediaCorsFallback: false, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], undoHistory: [], activeCommentId: null, pointerId: null, shapeRawPoint: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, panPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
+  const HOME_VIEW_KEY = 'gb-studio-reviews-home-view';
+  const HOME_SORT_KEY = 'gb-studio-reviews-home-sort';
+  let homeView = localStorage.getItem(HOME_VIEW_KEY) === 'list' ? 'list' : 'grid';
+  let homeSort = ['recent', 'name', 'client'].includes(localStorage.getItem(HOME_SORT_KEY)) ? localStorage.getItem(HOME_SORT_KEY) : 'recent';
+  let homeClientFilter = 'all';
+  const state = { records: [], projects: [], projectId: null, versionId: null, active: null, mediaUrl: null, mediaCorsFallback: false, model: null, drawing: false, sketchMode: false, tool: 'pen', draft: [], scratch: [], undoHistory: [], activeCommentId: null, editingCommentId: null, editingText: '', editingSaving: false, pointerId: null, shapeRawPoint: null, saving: false, view: { scale: 1, x: 0, y: 0 }, zHeld: false, zoomPointer: null, panPointer: null, shareToken: null, guestName: '', guestUid: null, stopComments: null };
   const video = $('#reviewsVideo');
   const image = $('#reviewsImage');
   const canvas = $('#reviewsCanvas');
@@ -41,7 +46,7 @@
       transaction.onabort = () => reject(transaction.error || new Error('No se pudo guardar el archivo'));
     });
   }
-  const cloud = () => import('./reviews-cloud.js?v=9');
+  const cloud = () => import('./reviews-cloud.js?v=10');
   const isClient = () => window.STUDIO_ROLE !== 'admin' && (window.STUDIO_MIRA_ROLE === 'client' || window.STUDIO_PERMISSIONS?.reviewsClient === true);
   const canReview = key => window.STUDIO_ROLE === 'admin' || (!(isClient() && ['reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'].includes(key)) && window.STUDIO_PERMISSIONS?.[key] === true);
   const canEnterReviews = () => canReview('reviewsView') || canReview('reviewsClient');
@@ -188,6 +193,7 @@
       $('#reviewsCreateProject').hidden = true;
       $('#reviewsCreateVersion').hidden = true;
       $('#reviewsEmptyCreate').hidden = true;
+      $('#reviewsHomeControls').hidden = true;
       $('#reviewsProjectContext').hidden = true;
       $('#reviewsHomeTitle').textContent = isClient() ? 'Tus reviews' : 'Mira tus proyectos';
       return;
@@ -202,14 +208,33 @@
     $('#reviewsProjectContext').hidden = !project;
     $('#reviewsHomeSectionLabel').textContent = clientOnly ? 'REVIEWS COMPARTIDAS' : project ? 'REVISIONES DE ESTE PROYECTO' : 'PROYECTOS';
     const entries = clientOnly ? state.projects.flatMap(item => item.versions.map(version => ({ ...version, projectId: item.id, projectTitle: item.title }))) : project ? [...project.versions] : [...state.projects];
-    $('#reviewsHomeCount').textContent = `${entries.length} ${clientOnly || project ? entries.length === 1 ? 'review' : 'reviews' : entries.length === 1 ? 'proyecto' : 'proyectos'}`;
-    $('#reviewsHomeEmpty').hidden = entries.length > 0;
+    const organizingProjects = !clientOnly && !project;
+    $('#reviewsHomeControls').hidden = !organizingProjects;
+    grid.classList.toggle('is-list-view', organizingProjects && homeView === 'list');
+    $('#reviewsHomeGridView').setAttribute('aria-pressed', String(homeView === 'grid'));
+    $('#reviewsHomeListView').setAttribute('aria-pressed', String(homeView === 'list'));
+    $('#reviewsHomeSort').value = homeSort;
+    if (organizingProjects) {
+      const clients = [...new Set(entries.map(entry => entry.client?.trim() || ''))].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+      const filter = $('#reviewsHomeClientFilter'); filter.replaceChildren(new Option('Todos', 'all'));
+      for (const client of clients) filter.add(new Option(client || 'Sin cliente', client || '__none__'));
+      if (homeClientFilter !== 'all' && !clients.some(client => (client || '__none__') === homeClientFilter)) homeClientFilter = 'all';
+      filter.value = homeClientFilter;
+    }
+    const visibleEntries = organizingProjects && homeClientFilter !== 'all' ? entries.filter(entry => (entry.client?.trim() || '__none__') === homeClientFilter) : entries;
+    const compareName = (a, b) => a.localeCompare(b, 'es', { sensitivity: 'base', numeric: true });
+    visibleEntries.sort((a, b) => organizingProjects && homeSort === 'name' ? compareName(a.title, b.title)
+      : organizingProjects && homeSort === 'client' ? compareName(a.client?.trim() || '', b.client?.trim() || '') || compareName(a.title, b.title)
+        : (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    $('#reviewsHomeCount').textContent = organizingProjects && homeClientFilter !== 'all' ? `${visibleEntries.length} de ${entries.length} proyectos`
+      : `${visibleEntries.length} ${clientOnly || project ? visibleEntries.length === 1 ? 'review' : 'reviews' : visibleEntries.length === 1 ? 'proyecto' : 'proyectos'}`;
+    $('#reviewsHomeEmpty').hidden = visibleEntries.length > 0;
     $('#reviewsEmptyCreate').textContent = project ? '＋ Crear review' : '＋ Crear proyecto';
-    $('#reviewsHomeEmpty h2').textContent = clientOnly ? 'Todavía no hay reviews asignadas.' : project ? 'Todavía no hay reviews.' : 'Un lugar para cada devolución.';
-    $('#reviewsHomeEmpty p').textContent = clientOnly ? 'Cuando el equipo te asigne una review, la vas a encontrar acá.' : project ? 'Creá una review de montaje, VFX o cliente para empezar a cargar material.' : 'Creá un proyecto y después abrí reviews distintas para montaje, VFX o cliente.';
-    $('#reviewsEmptyCreate').hidden = !canReview('reviewsCreate');
+    $('#reviewsHomeEmpty h2').textContent = organizingProjects && homeClientFilter !== 'all' ? 'No hay proyectos de este cliente.' : clientOnly ? 'Todavía no hay reviews asignadas.' : project ? 'Todavía no hay reviews.' : 'Un lugar para cada devolución.';
+    $('#reviewsHomeEmpty p').textContent = organizingProjects && homeClientFilter !== 'all' ? 'Elegí otro cliente o volvé a mostrar todos los proyectos.' : clientOnly ? 'Cuando el equipo te asigne una review, la vas a encontrar acá.' : project ? 'Creá una review de montaje, VFX o cliente para empezar a cargar material.' : 'Creá un proyecto y después abrí reviews distintas para montaje, VFX o cliente.';
+    $('#reviewsEmptyCreate').hidden = !canReview('reviewsCreate') || organizingProjects && homeClientFilter !== 'all';
     if (project) $('#reviewsProjectMeta').textContent = [project.client && `CLIENTE · ${project.client}`, project.agency && `AGENCIA · ${project.agency}`, project.director && `DIRECTOR · ${project.director}`, 'GRAN BERTA FILMS'].filter(Boolean).join('  /  ');
-    for (const entry of entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
+    for (const entry of visibleEntries) {
       const card = document.createElement('article'); card.className = 'reviews-home-card';
       const open = document.createElement('button'); open.type = 'button'; open.className = `reviews-home-card-open ${clientOnly || project ? 'is-review-card' : 'is-project-card'}`;
       if (!project && !clientOnly) {
@@ -349,6 +374,11 @@
     if (!isGuestReview() && canReview('reviewsEdit')) return true;
     const uid = window.STUDIO_USER?.uid || state.guestUid;
     return Boolean(canComment() && uid && comment.authorUid === uid);
+  }
+  function canEditOwnComment(comment) {
+    const uid = window.STUDIO_USER?.uid || state.guestUid;
+    const shared = state.shareToken || currentVersion()?.shareToken;
+    return Boolean(uid && comment.authorUid === uid && (shared ? isGuestReview() || canEnterReviews() : canReview('reviewsEdit')));
   }
   function applyReviewPermissions() {
     const guest = isGuestReview();
@@ -637,14 +667,33 @@
       const text = document.createElement('span'); text.className = 'reviews-comment-text'; text.textContent = comment.text || 'Anotación visual';
       open.append(meta, text); open.addEventListener('click', () => selectComment(comment.id));
       card.append(open);
-      if (canDeleteComment(comment)) {
+      if (canEditOwnComment(comment) || canDeleteComment(comment)) {
         const actions = document.createElement('div'); actions.className = 'reviews-comment-actions';
+        if (canEditOwnComment(comment)) {
+          const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = 'Editar'; edit.setAttribute('aria-label', `Editar comentario de ${comment.authorName || 'usuario'}`);
+          edit.addEventListener('click', () => startCommentEdit(comment.id)); actions.append(edit);
+        }
         if (!isGuestReview() && canReview('reviewsEdit')) {
           const resolve = document.createElement('button'); resolve.type = 'button'; resolve.textContent = comment.resolved ? 'Reabrir' : 'Resolver'; resolve.addEventListener('click', () => updateComment(comment.id, entry => { entry.resolved = !entry.resolved; }));
           actions.append(resolve);
         }
-        const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Eliminar'; remove.addEventListener('click', () => updateComment(comment.id, null));
-        actions.append(remove); card.append(actions);
+        if (canDeleteComment(comment)) {
+          const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Eliminar'; remove.addEventListener('click', () => updateComment(comment.id, null));
+          actions.append(remove);
+        }
+        card.append(actions);
+      }
+      if (state.editingCommentId === comment.id && canEditOwnComment(comment)) {
+        const form = document.createElement('form'); form.className = 'reviews-comment-edit';
+        const field = document.createElement('textarea'); field.maxLength = 5000; field.setAttribute('aria-label', 'Editar tu comentario'); field.value = state.editingText; field.disabled = state.editingSaving;
+        field.addEventListener('input', () => { state.editingText = field.value; });
+        const buttons = document.createElement('div'); buttons.className = 'reviews-comment-edit-actions';
+        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancelar'; cancel.disabled = state.editingSaving;
+        cancel.addEventListener('click', () => { state.editingCommentId = null; state.editingText = ''; renderCommentList(); });
+        const save = document.createElement('button'); save.type = 'submit'; save.textContent = state.editingSaving ? 'Guardando…' : 'Guardar cambios'; save.disabled = state.editingSaving;
+        buttons.append(cancel, save); form.append(field, buttons);
+        form.addEventListener('submit', event => { event.preventDefault(); void saveOwnComment(comment.id); });
+        card.append(form);
       }
       list.append(card);
     }
@@ -691,7 +740,7 @@
     const record = state.records.find(entry => entry.id === id); if (!record) return;
     stopPan();
     state.stopComments?.(); state.stopComments = null;
-    stopMedia(); state.active = record; state.mediaCorsFallback = false; state.draft = []; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.activeCommentId = null; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; resetView();
+    stopMedia(); state.active = record; state.mediaCorsFallback = false; state.draft = []; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.activeCommentId = null; state.editingCommentId = null; state.editingText = ''; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; resetView();
     if (record.kind === 'video') {
       // Re-read the original: older versions stored an invented 24, and a Dropbox
       // file can be replaced while keeping its URL. Never trust a stale default.
@@ -767,9 +816,34 @@
     const comment = state.active?.comments.find(entry => entry.id === id); if (!comment) return;
     video.pause();
     if (isVideo()) video.currentTime = Math.min(comment.time, Number.isFinite(video.duration) ? video.duration : comment.time);
-    state.activeCommentId = id; state.draft = []; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null;
-    canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false');
+    state.activeCommentId = id; state.draft = []; state.scratch = []; state.undoHistory = []; state.pointerId = null; state.shapeRawPoint = null;
+    syncDrawingControls();
     renderCommentList(); redraw(); updateClock();
+  }
+  function startCommentEdit(id) {
+    const comment = state.active?.comments.find(entry => entry.id === id);
+    if (!comment || !canEditOwnComment(comment) || state.editingSaving) return;
+    state.editingCommentId = id; state.editingText = comment.text || '';
+    renderCommentList(); $('#reviewsCommentList .reviews-comment-edit textarea')?.focus();
+  }
+  async function saveOwnComment(id) {
+    const record = state.active;
+    const comment = record?.comments.find(entry => entry.id === id);
+    if (!comment || !canEditOwnComment(comment) || state.editingSaving || state.editingCommentId !== id) return;
+    const text = state.editingText.trim();
+    if (!text && !comment.strokes?.length) { showStatus('Escribí un comentario antes de guardarlo.'); return; }
+    if (text === comment.text) { state.editingCommentId = null; state.editingText = ''; renderCommentList(); return; }
+    const token = state.shareToken || currentVersion()?.shareToken;
+    state.editingSaving = true; renderCommentList();
+    try {
+      if (token) await (await cloud()).editOwnSharedComment(token, record.id, id, text);
+      else await saveRecord({ ...record, comments: record.comments.map(entry => entry.id === id ? { ...entry, text } : entry), updatedAt: new Date().toISOString() });
+      const latest = record.comments.find(entry => entry.id === id); if (latest) latest.text = text;
+      record.updatedAt = new Date().toISOString();
+      state.editingCommentId = null; state.editingText = '';
+      if (state.active === record) showStatus('Comentario actualizado.');
+    } catch (error) { if (state.active === record) showStatus('No se pudo editar el comentario. Tu texto sigue acá para reintentar.'); console.error(error); }
+    finally { state.editingSaving = false; if (state.active === record) { renderCommentList(); renderMarkers(); } }
   }
   async function updateComment(id, mutate) {
     const record = state.active;
@@ -1153,6 +1227,11 @@
   });
   $('#reviewsBackVersions').addEventListener('click', () => showReviewsHome(state.projectId));
   $('#reviewsBackProjects').addEventListener('click', () => showReviewsHome());
+  for (const [id, view] of [['#reviewsHomeGridView', 'grid'], ['#reviewsHomeListView', 'list']]) $(id).addEventListener('click', () => {
+    homeView = view; localStorage.setItem(HOME_VIEW_KEY, view); renderHome();
+  });
+  $('#reviewsHomeSort').addEventListener('change', event => { homeSort = event.target.value; localStorage.setItem(HOME_SORT_KEY, homeSort); renderHome(); });
+  $('#reviewsHomeClientFilter').addEventListener('change', event => { homeClientFilter = event.target.value; renderHome(); });
   $('#reviewsCreateProject').addEventListener('click', () => openForm('project'));
   $('#reviewsCreateVersion').addEventListener('click', () => openForm('version'));
   $('#reviewsEmptyCreate').addEventListener('click', () => openForm(currentProject() ? 'version' : 'project'));
@@ -1431,14 +1510,14 @@
   function togglePlayback() { if (!video.paused) { video.pause(); return; } if (Number.isFinite(state.active?.inPoint) && (currentTime() < state.active.inPoint || (Number.isFinite(state.active.outPoint) && currentTime() >= state.active.outPoint))) video.currentTime = state.active.inPoint; video.play().catch(() => showStatus('Este navegador no puede reproducir el formato del video.')); }
   $('#reviewsPlayBtn').addEventListener('click', togglePlayback);
   $('#reviewsMuteBtn').addEventListener('click', () => { video.muted = !video.muted; updateClock(); });
-  video.addEventListener('click', () => { if (state.drawing || state.zHeld) return; togglePlayback(); });
+  video.addEventListener('click', () => { if ((state.drawing && video.paused) || state.zHeld) return; togglePlayback(); });
   $('#reviewsSeek').addEventListener('input', event => { if (!Number.isFinite(video.duration)) return; if (frameMode()) seekFrame(Number(event.target.value)); else video.currentTime = video.duration * Number(event.target.value) / 1000; state.activeCommentId = null; redraw(); updateClock(); renderCommentList(); });
   $('#reviewsSeek').addEventListener('change', event => { if (frameMode() && Number.isFinite(video.duration)) seekFrame(Number(event.target.value)); });
   video.addEventListener('loadedmetadata', () => { $('#reviewsMediaSurface').style.setProperty('--review-aspect', String((video.videoWidth || 16) / (video.videoHeight || 9))); renderPlaybackSettings(); renderMarkers(); fitSurface(); });
   image.addEventListener('load', () => { $('#reviewsMediaSurface').style.setProperty('--review-aspect', String((image.naturalWidth || 16) / (image.naturalHeight || 9))); fitSurface(); });
   video.addEventListener('timeupdate', () => { if (!video.paused && Number.isFinite(state.active?.outPoint) && currentTime() >= state.active.outPoint) { video.pause(); video.currentTime = state.active.outPoint; } updateClock(); });
-  video.addEventListener('play', () => { state.activeCommentId = null; state.scratch = []; state.undoHistory = []; state.sketchMode = false; state.drawing = false; state.pointerId = null; state.shapeRawPoint = null; canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); $('#reviewsSketchBtn').classList.remove('is-active'); $('#reviewsSketchBtn').setAttribute('aria-pressed', 'false'); redraw(); renderCommentList(); updateClock(); });
-  video.addEventListener('pause', updateClock);
+  video.addEventListener('play', () => { state.activeCommentId = null; state.scratch = []; state.undoHistory = []; state.pointerId = null; state.shapeRawPoint = null; syncDrawingControls(); redraw(); renderCommentList(); updateClock(); });
+  video.addEventListener('pause', () => { syncDrawingControls(); updateClock(); });
   const mediaError = event => {
     const media = event.target;
     if (state.active?.source === 'dropbox' && !state.mediaCorsFallback && !media.hidden) {
@@ -1453,7 +1532,7 @@
   video.addEventListener('error', mediaError);
   image.addEventListener('error', mediaError);
   function syncDrawingControls() {
-    canvas.classList.toggle('is-drawing', state.drawing);
+    canvas.classList.toggle('is-drawing', state.drawing && (!isVideo() || video.paused));
     $('#reviewsDrawBtn').classList.toggle('is-active', state.drawing && !state.sketchMode);
     $('#reviewsDrawBtn').setAttribute('aria-pressed', String(state.drawing && !state.sketchMode));
     $('#reviewsSketchBtn').classList.toggle('is-active', state.sketchMode);
@@ -1527,7 +1606,8 @@
   $('#reviewsCommentForm').addEventListener('submit', async event => {
     event.preventDefault(); if (!state.active || state.saving || !canComment()) return;
     const text = $('#reviewsCommentText').value.trim(); if (!text && (!state.draft.length || state.sketchMode)) { $('#reviewsCommentText').focus(); return; }
-    const comment = { id: crypto.randomUUID(), text, time: currentTime(), strokes: state.sketchMode ? [] : structuredClone(state.draft), resolved: false, createdAt: new Date().toISOString() };
+    const authorName = isGuestReview() ? window.STUDIO_ROLE === 'review_guest' ? window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Google' : state.guestName || 'Invitado' : window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Equipo';
+    const comment = { id: crypto.randomUUID(), text, time: currentTime(), strokes: state.sketchMode ? [] : structuredClone(state.draft), resolved: false, createdAt: new Date().toISOString(), authorUid: window.STUDIO_USER?.uid || state.guestUid || '', authorName };
     const token = state.shareToken || currentVersion()?.shareToken;
     state.saving = true; $('#reviewsCommentForm button[type=submit]').disabled = true;
     const wasEphemeral = Boolean(state.active.ephemeral);
@@ -1535,8 +1615,7 @@
     state.active.comments.push(comment); state.active.updatedAt = comment.createdAt;
     try {
       if (token) {
-        const author = isGuestReview() ? window.STUDIO_ROLE === 'review_guest' ? window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Google' : state.guestName || 'Invitado' : window.STUDIO_USER?.displayName || window.STUDIO_USER?.email || 'Equipo';
-        await (await cloud()).addSharedComment(token, state.active.id, comment, author);
+        await (await cloud()).addSharedComment(token, state.active.id, comment, authorName);
       } else await saveRecord(state.active);
       $('#reviewsCommentText').value = ''; state.draft = []; state.undoHistory = []; if (!state.sketchMode) { state.activeCommentId = comment.id; state.drawing = false; canvas.classList.remove('is-drawing'); $('#reviewsDrawBtn').classList.remove('is-active'); $('#reviewsDrawBtn').setAttribute('aria-pressed', 'false'); }
       renderCommentList(); renderMarkers(); renderList(); redraw();

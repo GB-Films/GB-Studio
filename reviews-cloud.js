@@ -293,7 +293,9 @@ export async function addSharedComment(token, fileId, comment, authorName) {
     authorName: authorName.trim().slice(0, 60) });
 }
 export async function changeSharedComment(token, fileId, comment) {
-  await updateDoc(commentRef(token, fileId, comment.id), { text: comment.text, strokesJson: encodeStrokes(comment.strokes),
-    resolved: Boolean(comment.resolved) });
+  await updateDoc(commentRef(token, fileId, comment.id), { resolved: Boolean(comment.resolved) });
+}
+export async function editOwnSharedComment(token, fileId, id, text) {
+  await updateDoc(commentRef(token, fileId, id), { text });
 }
 export async function deleteSharedComment(token, fileId, id) { await deleteDoc(commentRef(token, fileId, id)); }
