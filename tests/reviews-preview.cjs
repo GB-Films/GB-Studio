@@ -19,6 +19,7 @@ const server = http.createServer((request, response) => {
     const preview = await crawler.newPage();
     await preview.goto(origin + '/mira/');
     assert.match(await preview.title(), /^MIRA/);
+    assert.match(await preview.locator('link[rel="icon"]').getAttribute('href'), /mira-logo\.svg\?v=6$/);
     assert.match(await preview.locator('meta[property="og:site_name"]').getAttribute('content'), /GB Films/);
     const metaImage = await preview.locator('meta[property="og:image"]').getAttribute('content');
     assert.match(metaImage, /assets\/gb-films-icon.png\?v=2$/);

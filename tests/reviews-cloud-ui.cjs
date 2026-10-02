@@ -107,6 +107,12 @@ const fakeFirebaseAuth = `
     await context.route('https://www.dropbox.com/scl/fi/**', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"></svg>' }));
     const url = `http://127.0.0.1:${server.address().port}`;
     const reviewsUrl = `${url}/?app=reviews`;
+    const launcher = await context.newPage();
+    await launcher.goto(`${url}/`);
+    assert.match(await launcher.locator('link[rel="icon"]').getAttribute('href'), /gb-films-logo-white\.png/, 'GB Studio keeps its own site icon');
+    assert.equal(await launcher.locator('#homeReviewsLink img').count(), 0, 'the Mira mark is not used on the launcher card');
+    assert.equal(await launcher.locator('#homeReviewsLink .studio-home-play').isVisible(), true, 'the launcher card shows a video preview instead');
+    await launcher.close();
     if (process.env.REVIEWS_LOGO_SCREENSHOT) {
       const logoPage = await context.newPage();
       await logoPage.goto(`${url}/__blank`);
@@ -136,7 +142,9 @@ const fakeFirebaseAuth = `
     assert.equal(await page.locator('#authGate').isVisible(), true, 'the studio starts behind the access gate');
     await authorize();
     await page.locator('#reviewsNav').click();
-    assert.equal(await page.locator('#reviewsNav .mira-nav-logo').evaluate(async image => { await image.decode(); return image.naturalWidth > 0; }), true, 'the Mira logo loads in navigation');
+    assert.match(await page.locator('link[rel="icon"]').getAttribute('href'), /mira-logo\.svg\?v=6$/, 'Mira uses the mark as its browser icon');
+    assert.match(await page.locator('link[rel="apple-touch-icon"]').getAttribute('href'), /mira-icon-180\.png\?v=1$/, 'Mira uses the mark for home-screen shortcuts');
+    assert.equal(await page.locator('#reviewsNav img, .reviews-home-brand img').count(), 0, 'the mark is absent from visible Mira navigation and headings');
     await page.locator('#reviewsCreateProject').click();
     assert.equal(await page.locator('input[name="reviewsCoverType"][value="color"]').isChecked(), true, 'new projects select a solid color by default');
     assert.equal(await page.locator('#reviewsCoverColor').isVisible(), true);
