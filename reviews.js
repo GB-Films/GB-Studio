@@ -47,7 +47,7 @@
       transaction.onabort = () => reject(transaction.error || new Error('No se pudo guardar el archivo'));
     });
   }
-  const cloud = () => import('./reviews-cloud.js?v=10');
+  const cloud = () => import('./reviews-cloud.js?v=11');
   const isClient = () => window.STUDIO_ROLE !== 'admin' && (window.STUDIO_MIRA_ROLE === 'client' || window.STUDIO_PERMISSIONS?.reviewsClient === true);
   const canReview = key => window.STUDIO_ROLE === 'admin' || (!(isClient() && ['reviewsView', 'reviewsCreate', 'reviewsEdit', 'reviewsShare'].includes(key)) && window.STUDIO_PERMISSIONS?.[key] === true);
   const canEnterReviews = () => canReview('reviewsView') || canReview('reviewsClient');
@@ -100,10 +100,11 @@
     catch { return null; }
   }
   const sharedReview = sharedReviewFromHash();
+  const sharedAlias = new URLSearchParams(location.search).get('link');
   const sharedParams = new URLSearchParams(location.hash.slice(1));
   const sharedToken = sharedParams.get('share');
   const sharedFileId = sharedParams.get('file');
-  if (sharedReview || sharedToken) document.body.classList.add('public-review');
+  if (sharedReview || sharedToken || sharedAlias !== null) document.body.classList.add('public-review');
   if (sharedReview) document.body.classList.add('legacy-public-review');
   if (sharedToken) { state.shareToken = sharedToken; state.guestName = sessionStorage.getItem(`gb-review-guest:${sharedToken}`) || ''; }
   let formMode = null;
@@ -321,7 +322,7 @@
       }
       const selected = records.find(record => record.id === state.active?.id) || records.sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0))[0];
       const alias = await (await cloud()).publishReviewAlias(project, version, token, selected, records.length > 1);
-      const { buildNamedShareUrl } = await import('./reviews-links.js?v=2');
+      const { buildNamedShareUrl } = await import('./reviews-links.js?v=3');
       const link = buildNamedShareUrl(location.href, alias);
       $('#reviewsCopyInput').value = link;
       $('#reviewsCopyModal').hidden = false;
@@ -937,15 +938,28 @@
     requestAnimationFrame(fitSurface);
   }
   async function initialize() {
-    if (sharedToken) {
+    if (sharedToken || sharedAlias !== null) {
       try {
-        const share = await (await cloud()).getSharedReview(sharedToken);
+        const api = await cloud();
+        let token = sharedToken;
+        let fileId = sharedFileId;
+        if (sharedAlias !== null) {
+          const { isShareAlias, isShareToken } = await import('./reviews-links.js?v=3');
+          if (!isShareAlias(sharedAlias)) throw new Error('El nombre del enlace no es válido.');
+          const target = await api.getReviewAlias(sharedAlias);
+          if (!isShareToken(target?.token) || typeof target?.fileId !== 'string' || !target.fileId) throw new Error('Esta review ya no está disponible.');
+          token = target.token;
+          fileId = target.fileId;
+        }
+        state.shareToken = token;
+        state.guestName = sessionStorage.getItem(`gb-review-guest:${token}`) || '';
+        const share = await api.getSharedReview(token);
         const project = { id: share.projectId, title: share.projectTitle, client: share.client, agency: share.agency, director: share.director,
-          versions: [{ id: share.versionId, title: share.versionTitle, category: share.category, sections: share.sections || [], shareToken: sharedToken }] };
+          versions: [{ id: share.versionId, title: share.versionTitle, category: share.category, sections: share.sections || [], shareToken: token }] };
         state.projects = [project]; state.projectId = project.id; state.versionId = share.versionId;
         state.records = share.files;
         showReviews();
-        const first = share.files.find(file => file.id === sharedFileId) || share.files.sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0))[0];
+        const first = share.files.find(file => file.id === fileId) || share.files.sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0))[0];
         if (first) await selectRecord(first.id); else clearViewer();
         if (state.guestName) (await cloud()).guestIdentity().then(user => { state.guestUid = user.uid; renderCommentList(); }).catch(error => console.error('Guest session could not resume', error));
       } catch (error) {

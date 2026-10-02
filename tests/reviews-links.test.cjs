@@ -41,7 +41,8 @@ test('friendly names keep project codes, accents and version titles readable', a
   const alias = shareAliasBase({ title: 'QM-0003_Stella-Cartel' }, { title: 'Montaje · V1' }, { name: 'sc_offline.mp4' });
   assert.equal(alias, 'qm-0003-stella-cartel-montaje-v1');
   assert.equal(shareAliasBase({ title: 'PHD-0001_Raid-Miniatura' }, { title: 'Revisión 2' }), 'phd-0001-raid-miniatura-revision-2');
-  assert.equal(buildNamedShareUrl('https://gb-films.github.io/GB-Studio/?app=reviews#old', alias), 'https://gb-films.github.io/GB-Studio/mira/#/qm-0003-stella-cartel-montaje-v1');
+  assert.equal(buildNamedShareUrl('https://gb-films.github.io/GB-Studio/?app=reviews#old', alias), 'https://gb-films.github.io/GB-Studio/?app=reviews&link=qm-0003-stella-cartel-montaje-v1');
+  assert.equal(buildNamedShareUrl('https://gb-films.github.io/GB-Studio/mira/#/old', alias), 'https://gb-films.github.io/GB-Studio/?app=reviews&link=qm-0003-stella-cartel-montaje-v1');
   assert.equal(isShareAlias('../other'), false);
   assert.equal(isShareAlias(''), false);
   assert.equal(shareAliasBase({ title: 'QM-0003_' + 'title '.repeat(80) }, { title: 'V1' }).length <= 120, true);

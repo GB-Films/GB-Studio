@@ -31,10 +31,12 @@ export function expandShareHash(hash) {
   if (separator >= 0) params.set('file', expandFile(value.slice(separator + 1)));
   return params.toString();
 }
-function miraUrl(base) {
+function studioUrl(base) {
   const current = new URL(base);
-  const root = /\/mira\/(?:index\.html)?$/.test(current.pathname) ? new URL('../', current) : new URL('./', current);
-  return new URL('mira/', root);
+  return /\/mira\/(?:index\.html)?$/.test(current.pathname) ? new URL('../', current) : new URL('./', current);
+}
+function miraUrl(base) {
+  return new URL('mira/', studioUrl(base));
 }
 export function buildShareUrl(base, token, fileId) {
   if (!isShareToken(token)) throw new Error('El enlace de Mira no es válido.');
@@ -68,8 +70,9 @@ export async function reserveShareAlias(base, claim) {
 
 export function buildNamedShareUrl(base, alias) {
   if (!isShareAlias(alias)) throw new Error('El nombre del enlace no es válido.');
-  const link = miraUrl(base);
-  link.hash = '/' + alias;
+  const link = studioUrl(base);
+  link.searchParams.set('app', 'reviews');
+  link.searchParams.set('link', alias);
   return link.href;
 }
 
