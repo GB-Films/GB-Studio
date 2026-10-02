@@ -1,6 +1,7 @@
 /* Studio navigation is available from every workspace. */
 .studio-nav { display:flex; align-items:stretch; align-self:stretch; gap:3px; }
 .studio-nav-link { position:relative; display:flex; align-items:center; padding:0 14px; border:0; color:#aaa; background:transparent; font:500 11px 'DM Mono',monospace; text-decoration:none; text-transform:uppercase; letter-spacing:.6px; }
+.mira-nav-logo { width:24px; height:24px; margin-right:7px; }
 .studio-nav-link:hover,.studio-nav-link.is-active { color:#fff; }
 .studio-nav-link[hidden] { display:none!important; }
 .studio-nav-link.is-active::after { position:absolute; right:12px; bottom:0; left:12px; height:2px; background:#fff; content:''; }
@@ -16,6 +17,8 @@ html[data-studio-app="home"] #homeNav::after { position:absolute; right:12px; bo
 .reviews-home-top { display:flex; align-items:flex-end; justify-content:space-between; gap:25px; margin-bottom:46px; }
 .reviews-home-top .eyebrow,.reviews-home-heading,.reviews-home-card-tag,.reviews-project-context,#reviewsProjectMeta { font:10px 'DM Mono',monospace; letter-spacing:.08em; }
 .reviews-home-top .eyebrow { color:#777; }
+.reviews-home-brand { display:inline-flex; align-items:center; gap:9px; }
+.reviews-home-brand img { width:27px; height:27px; }
 .reviews-home-top h1 { margin:13px 0 10px; font:600 clamp(36px,4.5vw,64px)/1 'Space Grotesk',sans-serif; letter-spacing:-.055em; }
 .reviews-home-top p { max-width:570px; margin:0; color:#666; font-size:14px; line-height:1.55; }
 .reviews-home-create,#reviewsCreateVersion { flex:none; min-height:46px; padding:0 18px; border:1px solid #111; background:#111; color:#fff; font:600 12px 'Space Grotesk',sans-serif; cursor:pointer; }
@@ -65,26 +68,39 @@ html[data-studio-app="home"] #homeNav::after { position:absolute; right:12px; bo
 .reviews-home-empty button { margin-top:10px; padding:10px 16px; border:1px solid #111; background:#111; color:#fff; cursor:pointer; }
 .reviews-library-back { display:block; margin-bottom:20px; padding:0; border:0; background:none; color:#aaa; font:10px 'DM Mono',monospace; cursor:pointer; }
 .reviews-library-back:hover { color:#fff; }
-.reviews-form-modal { width:min(570px,100%); max-height:90dvh; overflow:auto; }
+.reviews-form-modal { display:flex; flex-direction:column; width:min(620px,100%); max-height:calc(100dvh - 32px); padding:22px 26px; overflow:hidden; }
 .reviews-form-modal [hidden] { display:none!important; }
-.reviews-form-fields { display:grid; gap:14px; margin-top:22px; }
-.reviews-form-fields label { display:grid; gap:6px; color:#777; font:10px 'DM Mono',monospace; }
-.reviews-form-fields input,.reviews-form-fields select,.reviews-copy-input { width:100%; min-width:0; padding:11px 12px; border:1px solid #bcbcbc; border-radius:0; background:#fff; color:#111; font:13px 'Space Grotesk',sans-serif; }
+.reviews-form-modal h2 { margin:3px 0 4px; }
+.reviews-form-modal .modal-copy { margin:0; }
+.reviews-form-modal .modal-actions { flex:none; margin-top:12px; padding-top:12px; border-top:1px solid #ddd; }
+.reviews-form-fields { display:grid; gap:10px; min-height:0; margin-top:12px; padding:2px; overflow-y:auto; }
+.reviews-form-fields label { display:grid; gap:4px; color:#777; font:10px 'DM Mono',monospace; }
+.reviews-form-fields input,.reviews-form-fields select,.reviews-copy-input { width:100%; min-width:0; padding:8px 10px; border:1px solid #bcbcbc; border-radius:0; background:#fff; color:#111; font:13px 'Space Grotesk',sans-serif; }
 .reviews-form-fields input:focus,.reviews-form-fields select:focus,.reviews-copy-input:focus { outline:2px solid #111; outline-offset:1px; }
-#reviewsProjectFields { display:grid; gap:14px; }
+#reviewsProjectFields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+#reviewsProjectFields > label:first-child,#reviewsProjectFields > .reviews-cover-fields,#reviewsProjectFields > p { grid-column:1/-1; }
 #reviewsProjectFields p { margin:0; color:#888; font:10px 'DM Mono',monospace; }
-.reviews-cover-fields { display:grid; gap:11px; min-width:0; margin:2px 0 0; padding:0; border:0; }
-.reviews-cover-fields legend { margin-bottom:9px; color:#777; font:10px 'DM Mono',monospace; }
-.reviews-cover-preview { height:126px; }
+.reviews-cover-fields { min-width:0; margin:0; padding:0; border:0; }
+.reviews-cover-fields legend { margin-bottom:6px; color:#777; font:10px 'DM Mono',monospace; }
+.reviews-cover-layout { display:grid; grid-template-columns:140px minmax(0,1fr); gap:12px; }
+.reviews-cover-preview { min-height:96px; }
+.reviews-cover-settings { display:grid; align-content:start; gap:7px; min-width:0; }
 .reviews-cover-preview.is-color>span,.reviews-cover-preview.is-image>span { display:none; }
-.reviews-cover-options { display:flex; flex-wrap:wrap; gap:7px; }
-.reviews-form-fields .reviews-cover-options label { display:flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid #bbb; color:#333; font:10px 'DM Mono',monospace; cursor:pointer; }
+.reviews-cover-options { display:flex; flex-wrap:wrap; gap:6px; }
+.reviews-form-fields .reviews-cover-options label { display:flex; align-items:center; gap:6px; padding:6px 8px; border:1px solid #bbb; color:#333; font:10px 'DM Mono',monospace; cursor:pointer; }
 .reviews-form-fields .reviews-cover-options label:has(input:checked) { border-color:#111; background:#111; color:#fff; }
 .reviews-form-fields .reviews-cover-options input { width:auto; min-width:0; margin:0; padding:0; accent-color:#e86f4c; }
 .reviews-form-fields .reviews-cover-control { display:grid; gap:7px; }
-.reviews-form-fields input[type="file"] { padding:9px; }
-.reviews-form-fields input[type="color"] { width:80px; height:42px; padding:3px; cursor:pointer; }
-#reviewsCoverMessage { min-height:14px; }
+.reviews-form-fields input[type="file"] { padding:6px; }
+.reviews-cover-palette { display:flex; flex-wrap:wrap; gap:5px; }
+.reviews-cover-palette > button,.reviews-cover-custom { position:relative; display:grid; place-items:center; width:29px; height:29px; flex:0 0 29px; padding:0; border:1px solid #aaa; border-radius:0; background:var(--swatch,#fff); cursor:pointer; }
+.reviews-cover-palette > button[aria-pressed="true"],.reviews-cover-custom.is-selected { outline:2px solid #111; outline-offset:2px; }
+.reviews-cover-palette > button:focus-visible,.reviews-cover-custom:focus-within { outline:2px solid #111; outline-offset:2px; }
+.reviews-cover-custom { overflow:hidden; color:#111; font:600 21px/1 'Space Grotesk',sans-serif; }
+.reviews-form-fields .reviews-cover-custom input[type="color"] { position:absolute; inset:0; width:100%; height:100%; padding:0; border:0; opacity:0; cursor:pointer; }
+#reviewsCoverMessage:empty { display:none; }
+@media (max-width:540px) { .reviews-form-modal { padding:20px 16px; } .reviews-cover-layout { grid-template-columns:96px minmax(0,1fr); gap:8px; } .reviews-cover-preview { min-height:96px; } }
+@media (max-width:400px) { #reviewsProjectFields { grid-template-columns:minmax(0,1fr); } .reviews-cover-layout { grid-template-columns:minmax(0,1fr); } .reviews-cover-preview { height:70px; min-height:0; } }
 .reviews-copy-input { margin-top:15px; font:11px 'DM Mono',monospace; }
 .reviews-view[hidden] { display:none!important; }
 .reviews-view [hidden] { display:none!important; }
