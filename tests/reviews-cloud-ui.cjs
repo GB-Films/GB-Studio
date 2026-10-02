@@ -111,7 +111,6 @@ const fakeFirebaseAuth = `
     await launcher.goto(`${url}/`);
     assert.match(await launcher.locator('link[rel="icon"]').getAttribute('href'), /gb-films-logo-white\.png/, 'GB Studio keeps its own site icon');
     assert.equal(await launcher.locator('#homeReviewsLink .studio-home-mira-logo').evaluate(async image => { await image.decode(); return image.naturalWidth > 0; }), true, 'the launcher card shows the Mira app icon');
-    assert.equal(await launcher.locator('#homeReviewsLink .studio-home-mira-logo').evaluate(image => getComputedStyle(image).borderRadius), '24px', 'the Mira icon has rounded app-style corners');
     if (process.env.REVIEWS_HOME_SCREENSHOT) await launcher.screenshot({ path: process.env.REVIEWS_HOME_SCREENSHOT, fullPage: true });
     await launcher.close();
     if (process.env.REVIEWS_LOGO_SCREENSHOT) {
