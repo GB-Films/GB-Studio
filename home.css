@@ -20,8 +20,9 @@ html[data-studio-app="home"] .top-actions { margin-left:auto; }
 .studio-home-shot:nth-child(3) { transform:rotate(-1deg); }
 .studio-home-shot i { display:block; height:5px; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.05); }
 .studio-home-shot i:last-child { width:62%; }
-.studio-home-reviews-art { border:1px solid #333; background:radial-gradient(circle at 50% 45%,#303030,#101010 70%); }
-.studio-home-mira-logo { box-sizing:border-box; width:min(57%,150px); max-height:82%; aspect-ratio:1; border:3px solid #e8e8e8; border-radius:24px; object-fit:contain; filter:drop-shadow(0 14px 18px rgba(0,0,0,.45)); }
+/* Match the 6px inset of Compi's button and the transparent frame of its icon. */
+.studio-home-reviews-art { padding-inline:6px; border:1px solid #333; background:radial-gradient(circle at 50% 45%,#303030,#101010 70%); }
+.studio-home-mira-logo { width:min(57%,150px); max-height:82%; object-fit:contain; filter:drop-shadow(0 14px 18px rgba(0,0,0,.45)); }
 .studio-home-card-bottom { display:grid; gap:10px; padding:23px 25px 25px; }
 .studio-home-card-bottom strong { font:600 clamp(30px,3.4vw,46px)/1 'Space Grotesk',sans-serif; letter-spacing:-.055em; }
 .studio-home-card-bottom .studio-home-version { display:inline-block; margin-left:8px; color:var(--brand-orange); font:600 11px 'DM Mono',monospace; letter-spacing:0; vertical-align:baseline; }
