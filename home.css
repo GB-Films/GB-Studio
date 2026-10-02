@@ -21,6 +21,7 @@ html[data-studio-app="home"] .top-actions { margin-left:auto; }
 .studio-home-shot i { display:block; height:5px; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.05); }
 .studio-home-shot i:last-child { width:62%; }
 .studio-home-reviews-art { background:radial-gradient(circle at 50% 42%,#383838,#111 65%); }
+.studio-home-mira-logo { width:118px; height:118px; filter:drop-shadow(11px 12px 0 rgba(0,0,0,.28)); }
 .studio-home-review-frame { position:relative; display:grid; width:min(78%,340px); height:145px; place-items:center; border:1px solid #737373; background:linear-gradient(138deg,#303030,#191919 46%,#494949); box-shadow:13px 12px 0 rgba(0,0,0,.33); }
 .studio-home-play { display:grid; place-items:center; width:49px; height:49px; border:1px solid #eee; border-radius:50%; color:#fff; font-size:16px; }
 .studio-home-timeline { position:absolute; right:12px; bottom:14px; left:12px; height:3px; background:linear-gradient(90deg,#ef714d 0 45%,#666 45%); }

@@ -125,6 +125,14 @@
     else image.removeAttribute('src');
     $('#reviewsCoverImageRow').hidden = type !== 'image';
     $('#reviewsCoverColorRow').hidden = type !== 'color';
+    let preset = false;
+    document.querySelectorAll('[data-cover-color]').forEach(button => {
+      const selected = button.dataset.coverColor === coverDraft.color.toLowerCase();
+      button.setAttribute('aria-pressed', String(selected));
+      if (selected) preset = true;
+    });
+    $('#reviewsCoverColor').value = coverDraft.color;
+    $('.reviews-cover-custom').classList.toggle('is-selected', type === 'color' && !preset);
   }
   async function prepareCoverImage(file) {
     if (!file.type.startsWith('image/')) throw new Error('Elegí un archivo de imagen.');
@@ -1245,6 +1253,11 @@
     document.querySelector('input[name="reviewsCoverType"][value="color"]').checked = true;
     updateCoverPreview();
   });
+  document.querySelectorAll('[data-cover-color]').forEach(button => button.addEventListener('click', () => {
+    coverDraft.color = button.dataset.coverColor;
+    document.querySelector('input[name="reviewsCoverType"][value="color"]').checked = true;
+    updateCoverPreview();
+  }));
   $('#reviewsCoverFile').addEventListener('change', async event => {
     const file = event.target.files?.[0]; if (!file) return;
     const requestId = ++coverRequestId;

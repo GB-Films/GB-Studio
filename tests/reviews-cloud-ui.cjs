@@ -17,7 +17,7 @@ const server = http.createServer((request, response) => {
   const pathname = new URL(request.url, 'http://localhost').pathname;
   if (pathname === '/__blank') { response.setHeader('Content-Type', 'text/html'); response.end('<!doctype html><title>Blank</title>'); return; }
   const file = path.join(root, pathname.endsWith('/') ? pathname + 'index.html' : pathname);
-  response.setHeader('Content-Type', ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png' })[path.extname(file)] || 'text/plain');
+  response.setHeader('Content-Type', ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml' })[path.extname(file)] || 'text/plain');
   fs.readFile(file, (error, data) => { if (error) { response.statusCode = 404; response.end(); } else response.end(data); });
 });
 const fakeCloud = `
@@ -107,6 +107,14 @@ const fakeFirebaseAuth = `
     await context.route('https://www.dropbox.com/scl/fi/**', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"></svg>' }));
     const url = `http://127.0.0.1:${server.address().port}`;
     const reviewsUrl = `${url}/?app=reviews`;
+    if (process.env.REVIEWS_LOGO_SCREENSHOT) {
+      const logoPage = await context.newPage();
+      await logoPage.goto(`${url}/__blank`);
+      await logoPage.setContent(`<style>body{display:grid;place-items:center;height:100vh;margin:0;background:#ececec}img{width:256px;height:256px;image-rendering:auto}</style><img src="${url}/assets/mira-logo.svg" alt="Mira" />`);
+      await logoPage.locator('img').evaluate(image => image.decode());
+      await logoPage.locator('img').screenshot({ path: process.env.REVIEWS_LOGO_SCREENSHOT });
+      await logoPage.close();
+    }
     const authorize = async () => {
       await page.waitForTimeout(350);
       await page.evaluate(() => {
@@ -128,10 +136,34 @@ const fakeFirebaseAuth = `
     assert.equal(await page.locator('#authGate').isVisible(), true, 'the studio starts behind the access gate');
     await authorize();
     await page.locator('#reviewsNav').click();
+    assert.equal(await page.locator('#reviewsNav .mira-nav-logo').evaluate(async image => { await image.decode(); return image.naturalWidth > 0; }), true, 'the Mira logo loads in navigation');
     await page.locator('#reviewsCreateProject').click();
     assert.equal(await page.locator('input[name="reviewsCoverType"][value="color"]').isChecked(), true, 'new projects select a solid color by default');
     assert.equal(await page.locator('#reviewsCoverColor').isVisible(), true);
     assert.equal(await page.locator('#reviewsCoverPreview').evaluate(preview => getComputedStyle(preview).backgroundColor), 'rgb(232, 111, 76)');
+    assert.equal(await page.locator('[data-cover-color]').count(), 10, 'the cover has ten ready-to-use colors');
+    assert.equal(await page.locator('[data-cover-color][aria-pressed="true"]').count(), 1, 'the current color is marked');
+    await page.locator('[data-cover-color="#4f89be"]').click();
+    assert.equal(await page.locator('#reviewsCoverPreview').evaluate(preview => getComputedStyle(preview).backgroundColor), 'rgb(79, 137, 190)', 'a preset immediately updates the preview');
+    await page.locator('#reviewsCoverColor').fill('#7654a3');
+    assert.equal(await page.locator('.reviews-cover-custom').evaluate(label => label.classList.contains('is-selected')), true, 'a custom palette choice remains marked');
+    await page.locator('[data-cover-color="#e86f4c"]').click();
+    const modalFits = async () => page.locator('#reviewsEntityForm').evaluate(form => {
+      const fields = form.querySelector('.reviews-form-fields');
+      const save = form.querySelector('#reviewsFormSubmit').getBoundingClientRect();
+      return { noInnerScroll: fields.scrollHeight <= fields.clientHeight + 1, saveVisible: save.top >= 0 && save.bottom <= innerHeight };
+    });
+    assert.deepEqual(await modalFits(), { noInnerScroll: true, saveVisible: true }, 'the complete project form and Save button fit at normal laptop height');
+    if (process.env.REVIEWS_FORM_SCREENSHOT) await page.screenshot({ path: process.env.REVIEWS_FORM_SCREENSHOT, fullPage: true });
+    await page.setViewportSize({ width: 900, height: 600 });
+    assert.equal((await modalFits()).saveVisible, true, 'Save stays visible on a shorter laptop screen');
+    await page.setViewportSize({ width: 390, height: 700 });
+    assert.equal((await modalFits()).saveVisible, true, 'Save stays visible on a phone');
+    await page.locator('input[name="reviewsCoverType"][value="image"]').check();
+    assert.equal(await page.locator('#reviewsCoverImageRow').isVisible(), true);
+    assert.equal((await modalFits()).saveVisible, true, 'choosing an image does not hide Save on a phone');
+    await page.locator('input[name="reviewsCoverType"][value="color"]').check();
+    await page.setViewportSize({ width: 1280, height: 720 });
     await page.locator('#reviewsEntityTitle').fill('Proyecto sincronizado');
     await page.locator('#reviewsEntityClient').fill('Cliente');
     await page.locator('#reviewsEntityForm button[type=submit]').click();
@@ -163,6 +195,15 @@ const fakeFirebaseAuth = `
     assert.equal(await coverColor('Alfa'), 'rgb(232, 111, 76)', 'older automatic MIRA covers now display the default color');
     assert.equal(await coverColor('Zeta'), 'rgb(53, 103, 138)', 'a chosen project color stays intact');
     assert.equal(await page.locator('#reviewsHomeGrid .reviews-home-card-cover').getByText('MIRA').count(), 0, 'the old MIRA artwork is gone');
+    await page.getByRole('button', { name: 'Editar Zeta' }).click();
+    assert.equal(await page.locator('#reviewsCoverColor').inputValue(), '#35678a', 'editing preserves a custom project color');
+    assert.equal(await page.locator('.reviews-cover-custom').evaluate(label => label.classList.contains('is-selected')), true);
+    assert.deepEqual(await modalFits(), { noInnerScroll: true, saveVisible: true }, 'editing a project also fits without scrolling');
+    if (process.env.REVIEWS_EDIT_FORM_SCREENSHOT) await page.screenshot({ path: process.env.REVIEWS_EDIT_FORM_SCREENSHOT, fullPage: true });
+    await page.locator('#reviewsFormCancel').click();
+    await page.getByRole('button', { name: 'Editar Alfa' }).click();
+    assert.equal(await page.locator('[data-cover-color="#e86f4c"]').getAttribute('aria-pressed'), 'true', 'a legacy project opens with the new default color');
+    await page.locator('#reviewsFormCancel').click();
     await page.locator('#reviewsHomeListView').click();
     assert.equal(await page.locator('#reviewsHomeGrid').evaluate(grid => grid.classList.contains('is-list-view')), true, 'projects can be displayed one below another');
     assert.ok((await page.locator('#reviewsHomeGrid .reviews-home-card').first().boundingBox()).height < 100, 'list rows are compact');

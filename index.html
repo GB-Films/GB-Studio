@@ -29,8 +29,8 @@
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="stylesheet" href="styles.css?v=57" />
-    <link rel="stylesheet" href="reviews.css?v=22" />
-    <link rel="stylesheet" href="home.css?v=8" />
+    <link rel="stylesheet" href="reviews.css?v=23" />
+    <link rel="stylesheet" href="home.css?v=9" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
   </head>
   <body class="auth-locked">
@@ -47,7 +47,7 @@
     <div class="app-shell">
       <header class="topbar">
         <a class="brand" href="./" aria-label="Inicio de GB Studio"><img class="brand-logo" src="assets/gb-films-logo-white.png" alt="GB Films" /><span class="brand-divider"></span><span class="brand-product">GB<br /><em>STUDIO</em></span></a>
-        <nav class="studio-nav" aria-label="Secciones de GB Studio"><a class="studio-nav-link studio-nav-home" id="homeNav" href="./">Inicio</a><button class="studio-nav-link" id="storyboardsNav" type="button">Visto</button><button class="studio-nav-link" id="pdrNav" type="button">PDR</button><button class="studio-nav-link" id="reviewsNav" type="button">Mira</button></nav>
+        <nav class="studio-nav" aria-label="Secciones de GB Studio"><a class="studio-nav-link studio-nav-home" id="homeNav" href="./">Inicio</a><button class="studio-nav-link" id="storyboardsNav" type="button">Visto</button><button class="studio-nav-link" id="pdrNav" type="button">PDR</button><button class="studio-nav-link" id="reviewsNav" type="button"><img class="mira-nav-logo" src="assets/mira-logo.svg" alt="" />Mira</button></nav>
         <div class="breadcrumbs"><span>PROYECTOS</span><b>/</b><strong id="breadcrumbTitle">Todos los proyectos</strong></div>
         <div class="top-actions"><button class="button button-ghost" id="backToDashboardBtn" type="button" hidden>← Proyectos</button><button class="button button-ghost" id="manageVersionsBtn" type="button" hidden>Versiones</button><button class="button button-ghost" id="createVersionBtn" type="button" hidden>＋ Crear versión</button><button class="button button-ghost" id="shootingPlanBtn" type="button" hidden>☷ Plan de rodaje</button><button class="button button-primary" id="exportBtn" type="button" hidden><span>↗</span> Exportar</button><button class="studio-settings-button" id="reviewsAdminBtn" type="button" aria-label="Configuración" title="Configuración" hidden>⚙</button><button class="account-button" id="accountButton" type="button" aria-label="Iniciar sesión con Google" aria-controls="profileModal" aria-expanded="false"><span class="account-avatar" id="accountAvatar">G</span><span class="account-label" id="accountLabel">Iniciar sesión</span></button></div>
       </header>
@@ -72,7 +72,7 @@
           <section class="studio-home-tools" aria-labelledby="studioHomeToolsTitle"><div class="studio-home-tools-header"><div><span class="studio-home-kicker">APLICACIONES</span><h2 id="studioHomeToolsTitle">¿Dónde trabajamos hoy?</h2></div></div>
             <div class="studio-home-cards">
               <a class="studio-home-card studio-home-card-storyboards" id="homeStoryboardsLink" href="?app=storyboards"><span class="studio-home-card-art studio-home-storyboard-art" aria-hidden="true"><span class="studio-home-shot"><i></i><i></i></span><span class="studio-home-shot"><i></i><i></i></span><span class="studio-home-shot"><i></i><i></i></span></span><span class="studio-home-card-bottom"><strong>Visto</strong><span>Organizá tomas, armá páginas y presentá la idea antes de producir.</span><small id="homeStoryboardsStatus">Iniciá sesión para entrar →</small></span></a>
-              <a class="studio-home-card studio-home-card-reviews" id="homeReviewsLink" href="?app=reviews"><span class="studio-home-card-art studio-home-reviews-art" aria-hidden="true"><span class="studio-home-review-frame"><span class="studio-home-play">▶</span><span class="studio-home-timeline"></span></span></span><span class="studio-home-card-bottom"><strong>Mira</strong><span>Revisá fotos y videos, compartí versiones y reuní las correcciones.</span><small id="homeReviewsStatus">Iniciá sesión para entrar →</small></span></a>
+              <a class="studio-home-card studio-home-card-reviews" id="homeReviewsLink" href="?app=reviews"><span class="studio-home-card-art studio-home-reviews-art" aria-hidden="true"><img class="studio-home-mira-logo" src="assets/mira-logo.svg" alt="" /></span><span class="studio-home-card-bottom"><strong>Mira</strong><span>Revisá fotos y videos, compartí versiones y reuní las correcciones.</span><small id="homeReviewsStatus">Iniciá sesión para entrar →</small></span></a>
               <button class="studio-home-card studio-home-card-compi" id="homeCompiLink" type="button" aria-label="Descargar Compi versión 1.3.2 para Windows"><span class="studio-home-card-art studio-home-compi-art" aria-hidden="true"><img src="assets/compi-icon.png?v=2" alt="" /></span><span class="studio-home-card-bottom"><strong>Compi <span class="studio-home-version">v1.3.2</span></strong><span>Comprimí videos o fotos de la manera más rápida.</span><small id="homeCompiStatus">Iniciá sesión para descargar ↓</small></span></button>
               <a class="studio-home-card studio-home-card-pdr" id="homePdrLink" href="?app=pdr" aria-labelledby="homePdrTitle"><span class="studio-home-card-soon">ABRIR PDR</span><span class="studio-home-card-art studio-home-pdr-art" aria-hidden="true"><span class="studio-home-pdr-sheet"><span class="studio-home-pdr-sheet-heading">PLAN DE RODAJE <b>GB</b></span><span class="studio-home-pdr-row"><i>06:00</i><i>LLAMADO DE EQUIPO</i><i>01</i></span><span class="studio-home-pdr-row"><i>08:30</i><i>PRIMERA TOMA</i><i>02</i></span><span class="studio-home-pdr-row"><i>13:00</i><i>CAMBIO DE SET</i><i>03</i></span></span></span><span class="studio-home-card-bottom"><strong id="homePdrTitle">PDR</strong><span>Planes de rodaje, jornadas y equipo organizados en un solo lugar.</span><small id="homePdrStatus">Iniciá sesión para entrar →</small></span></a>
             </div>
@@ -93,7 +93,7 @@
       <main class="reviews-home" id="reviewsHome" hidden>
         <div class="reviews-home-loading" id="reviewsHomeLoading" role="status" aria-live="polite" hidden>Cargando proyectos de Mira…</div>
         <div class="reviews-home-inner">
-          <div class="reviews-home-top"><div><span class="eyebrow">GB STUDIO / MIRA</span><h1 id="reviewsHomeTitle">Mira tus proyectos</h1><p id="reviewsHomeCopy">Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.</p></div><button class="reviews-home-create" id="reviewsCreateProject" type="button">＋ Nuevo proyecto</button></div>
+          <div class="reviews-home-top"><div><span class="eyebrow reviews-home-brand"><img src="assets/mira-logo.svg" alt="" />GB STUDIO / MIRA</span><h1 id="reviewsHomeTitle">Mira tus proyectos</h1><p id="reviewsHomeCopy">Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.</p></div><button class="reviews-home-create" id="reviewsCreateProject" type="button">＋ Nuevo proyecto</button></div>
           <div class="reviews-home-context" id="reviewsProjectContext" hidden><button id="reviewsBackProjects" type="button">← Todos los proyectos</button><div id="reviewsProjectMeta"></div><button id="reviewsCreateVersion" type="button">＋ Nueva review</button></div>
           <div class="reviews-home-heading"><span id="reviewsHomeSectionLabel">PROYECTOS</span><div class="reviews-home-controls" id="reviewsHomeControls" hidden><label>Ordenar <select id="reviewsHomeSort" aria-label="Ordenar proyectos"><option value="recent">Actividad reciente</option><option value="name">Nombre del proyecto</option><option value="client">Cliente</option></select></label><label>Cliente <select id="reviewsHomeClientFilter" aria-label="Filtrar proyectos por cliente"><option value="all">Todos</option></select></label><div class="reviews-home-view-switch" role="group" aria-label="Vista de proyectos"><button id="reviewsHomeGridView" type="button" aria-label="Vista de tarjetas" aria-pressed="true" title="Tarjetas">▦</button><button id="reviewsHomeListView" type="button" aria-label="Vista de lista" aria-pressed="false" title="Lista">☰</button></div></div><span id="reviewsHomeCount">0 proyectos</span></div>
           <div class="reviews-home-grid" id="reviewsHomeGrid"></div>
@@ -228,7 +228,7 @@
 
     <div class="modal-backdrop reviews-modal-backdrop" id="reviewsFormModal" hidden>
       <form class="modal reviews-form-modal" id="reviewsEntityForm" role="dialog" aria-modal="true" aria-labelledby="reviewsFormTitle">
-        <button class="modal-close" id="reviewsFormClose" type="button" aria-label="Cerrar">×</button><span class="confirm-modal-mark">＋</span>
+        <button class="modal-close" id="reviewsFormClose" type="button" aria-label="Cerrar">×</button>
         <div class="eyebrow">GB STUDIO / MIRA</div><h2 id="reviewsFormTitle">Nuevo proyecto</h2><p class="modal-copy" id="reviewsFormCopy">Completá los datos para organizar tus revisiones.</p>
         <div class="reviews-form-fields">
           <label>TÍTULO *<input id="reviewsEntityTitle" type="text" maxlength="100" required placeholder="Ej. Campaña verano" /></label>
@@ -237,14 +237,30 @@
             <label>AGENCIA<input id="reviewsEntityAgency" type="text" maxlength="100" placeholder="Opcional" /></label>
             <label>DIRECTOR<input id="reviewsEntityDirector" type="text" maxlength="100" placeholder="Opcional" /></label>
             <fieldset class="reviews-cover-fields"><legend>PORTADA DEL PROYECTO</legend>
-              <div class="reviews-cover-preview is-color" id="reviewsCoverPreview" aria-hidden="true" style="background-color:#e86f4c"><img id="reviewsCoverPreviewImage" alt="" hidden /></div>
-              <div class="reviews-cover-options" role="group" aria-label="Tipo de portada">
-                <label><input type="radio" name="reviewsCoverType" value="image" /> Imagen</label>
-                <label><input type="radio" name="reviewsCoverType" value="color" checked /> Color sólido</label>
+              <div class="reviews-cover-layout">
+                <div class="reviews-cover-preview is-color" id="reviewsCoverPreview" aria-hidden="true" style="background-color:#e86f4c"><img id="reviewsCoverPreviewImage" alt="" hidden /></div>
+                <div class="reviews-cover-settings">
+                  <div class="reviews-cover-options" role="group" aria-label="Tipo de portada">
+                    <label><input type="radio" name="reviewsCoverType" value="image" /> Imagen</label>
+                    <label><input type="radio" name="reviewsCoverType" value="color" checked /> Color sólido</label>
+                  </div>
+                  <label class="reviews-cover-control" id="reviewsCoverImageRow" hidden>SUBIR IMAGEN<input id="reviewsCoverFile" type="file" accept="image/*" /></label>
+                  <div class="reviews-cover-control" id="reviewsCoverColorRow" hidden><span>COLOR</span><div class="reviews-cover-palette" role="group" aria-label="Colores para la portada">
+                    <button type="button" data-cover-color="#e86f4c" aria-label="Coral" title="Coral" style="--swatch:#e86f4c"></button>
+                    <button type="button" data-cover-color="#f2b84b" aria-label="Amarillo" title="Amarillo" style="--swatch:#f2b84b"></button>
+                    <button type="button" data-cover-color="#8dbb6a" aria-label="Verde" title="Verde" style="--swatch:#8dbb6a"></button>
+                    <button type="button" data-cover-color="#40a69b" aria-label="Turquesa" title="Turquesa" style="--swatch:#40a69b"></button>
+                    <button type="button" data-cover-color="#4f89be" aria-label="Azul" title="Azul" style="--swatch:#4f89be"></button>
+                    <button type="button" data-cover-color="#715cc7" aria-label="Violeta" title="Violeta" style="--swatch:#715cc7"></button>
+                    <button type="button" data-cover-color="#bf70a5" aria-label="Rosa" title="Rosa" style="--swatch:#bf70a5"></button>
+                    <button type="button" data-cover-color="#d75f62" aria-label="Rojo" title="Rojo" style="--swatch:#d75f62"></button>
+                    <button type="button" data-cover-color="#876d53" aria-label="Marrón" title="Marrón" style="--swatch:#876d53"></button>
+                    <button type="button" data-cover-color="#30343f" aria-label="Grafito" title="Grafito" style="--swatch:#30343f"></button>
+                    <label class="reviews-cover-custom" title="Elegir otro color"><span aria-hidden="true">＋</span><input id="reviewsCoverColor" type="color" value="#e86f4c" aria-label="Elegir otro color" /></label>
+                  </div></div>
+                  <p id="reviewsCoverMessage" role="status" aria-live="polite"></p>
+                </div>
               </div>
-              <label class="reviews-cover-control" id="reviewsCoverImageRow" hidden>SUBIR IMAGEN<input id="reviewsCoverFile" type="file" accept="image/*" /></label>
-              <label class="reviews-cover-control" id="reviewsCoverColorRow" hidden>COLOR<input id="reviewsCoverColor" type="color" value="#e86f4c" /></label>
-              <p id="reviewsCoverMessage" role="status" aria-live="polite"></p>
             </fieldset>
             <p>Productora · GRAN BERTA FILMS</p>
           </div>
@@ -291,7 +307,7 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
     <script src="app.js?v=76"></script>
-    <script src="reviews.js?v=33"></script>
+    <script src="reviews.js?v=34"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {
