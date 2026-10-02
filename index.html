@@ -29,7 +29,7 @@
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="stylesheet" href="styles.css?v=57" />
-    <link rel="stylesheet" href="reviews.css?v=21" />
+    <link rel="stylesheet" href="reviews.css?v=22" />
     <link rel="stylesheet" href="home.css?v=8" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
   </head>
@@ -237,11 +237,10 @@
             <label>AGENCIA<input id="reviewsEntityAgency" type="text" maxlength="100" placeholder="Opcional" /></label>
             <label>DIRECTOR<input id="reviewsEntityDirector" type="text" maxlength="100" placeholder="Opcional" /></label>
             <fieldset class="reviews-cover-fields"><legend>PORTADA DEL PROYECTO</legend>
-              <div class="reviews-cover-preview is-default" id="reviewsCoverPreview" aria-hidden="true"><span>MIRA</span><img id="reviewsCoverPreviewImage" alt="" hidden /></div>
+              <div class="reviews-cover-preview is-color" id="reviewsCoverPreview" aria-hidden="true" style="background-color:#e86f4c"><img id="reviewsCoverPreviewImage" alt="" hidden /></div>
               <div class="reviews-cover-options" role="group" aria-label="Tipo de portada">
-                <label><input type="radio" name="reviewsCoverType" value="default" checked /> Predeterminada</label>
                 <label><input type="radio" name="reviewsCoverType" value="image" /> Imagen</label>
-                <label><input type="radio" name="reviewsCoverType" value="color" /> Color sólido</label>
+                <label><input type="radio" name="reviewsCoverType" value="color" checked /> Color sólido</label>
               </div>
               <label class="reviews-cover-control" id="reviewsCoverImageRow" hidden>SUBIR IMAGEN<input id="reviewsCoverFile" type="file" accept="image/*" /></label>
               <label class="reviews-cover-control" id="reviewsCoverColorRow" hidden>COLOR<input id="reviewsCoverColor" type="color" value="#e86f4c" /></label>
@@ -292,7 +291,7 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
     <script src="app.js?v=76"></script>
-    <script src="reviews.js?v=32"></script>
+    <script src="reviews.js?v=33"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {

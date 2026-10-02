@@ -4,6 +4,7 @@
   const $ = selector => document.querySelector(selector);
   const DB_NAME = 'gb-studio-reviews-v1';
   const ACTIVE_KEY = 'gb-studio-reviews-active-v1';
+  const DEFAULT_COVER_COLOR = '#e86f4c';
   const HOME_VIEW_KEY = 'gb-studio-reviews-home-view';
   const HOME_SORT_KEY = 'gb-studio-reviews-home-sort';
   let homeView = localStorage.getItem(HOME_VIEW_KEY) === 'list' ? 'list' : 'grid';
@@ -106,13 +107,13 @@
   if (sharedReview) document.body.classList.add('legacy-public-review');
   if (sharedToken) { state.shareToken = sharedToken; state.guestName = sessionStorage.getItem(`gb-review-guest:${sharedToken}`) || ''; }
   let formMode = null;
-  let coverDraft = { image: '', color: '#e86f4c' };
+  let coverDraft = { image: '', color: DEFAULT_COVER_COLOR };
   let coverRequestId = 0;
   let confirmResolve = null;
   let sectionEditId = null;
   let draggedRecordId = null;
   function closeForm() { $('#reviewsFormModal').hidden = true; formMode = null; coverRequestId += 1; $('#reviewsFormSubmit').disabled = false; }
-  function selectedCoverType() { return document.querySelector('input[name="reviewsCoverType"]:checked')?.value || 'default'; }
+  function selectedCoverType() { return document.querySelector('input[name="reviewsCoverType"]:checked')?.value || 'color'; }
   function updateCoverPreview() {
     const type = selectedCoverType();
     const preview = $('#reviewsCoverPreview');
@@ -167,8 +168,8 @@
     $('#reviewsEntityDirector').value = entity?.director || '';
     $('#reviewsEntityCategory').value = entity?.category || 'Montaje';
     if (project) {
-      coverDraft = { image: /^data:image\/jpeg;base64,/.test(entity?.coverImage || '') ? entity.coverImage : '', color: /^#[0-9a-f]{6}$/i.test(entity?.coverColor || '') ? entity.coverColor : '#e86f4c' };
-      const coverType = ['default', 'image', 'color'].includes(entity?.coverType) ? entity.coverType : 'default';
+      coverDraft = { image: /^data:image\/jpeg;base64,/.test(entity?.coverImage || '') ? entity.coverImage : '', color: /^#[0-9a-f]{6}$/i.test(entity?.coverColor || '') ? entity.coverColor : DEFAULT_COVER_COLOR };
+      const coverType = ['image', 'color'].includes(entity?.coverType) ? entity.coverType : 'color';
       document.querySelector(`input[name="reviewsCoverType"][value="${coverType}"]`).checked = true;
       $('#reviewsCoverColor').value = coverDraft.color;
       $('#reviewsCoverFile').value = '';
@@ -243,10 +244,8 @@
           cover.classList.add('is-image');
           const coverImage = document.createElement('img'); coverImage.src = entry.coverImage; coverImage.alt = '';
           cover.append(coverImage);
-        } else if (entry.coverType === 'color' && /^#[0-9a-f]{6}$/i.test(entry.coverColor || '')) {
-          cover.classList.add('is-color'); cover.style.backgroundColor = entry.coverColor;
         } else {
-          cover.classList.add('is-default'); const wordmark = document.createElement('span'); wordmark.textContent = 'MIRA'; cover.append(wordmark);
+          cover.classList.add('is-color'); cover.style.backgroundColor = /^#[0-9a-f]{6}$/i.test(entry.coverColor || '') ? entry.coverColor : DEFAULT_COVER_COLOR;
         }
         open.append(cover);
       }
