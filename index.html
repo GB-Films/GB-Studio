@@ -29,7 +29,7 @@
     <link rel="icon" type="image/png" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="apple-touch-icon" href="assets/gb-films-logo-white.png?v=2" />
     <link rel="stylesheet" href="styles.css?v=57" />
-    <link rel="stylesheet" href="reviews.css?v=20" />
+    <link rel="stylesheet" href="reviews.css?v=21" />
     <link rel="stylesheet" href="home.css?v=8" />
     <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"}}</script>
   </head>
@@ -95,7 +95,7 @@
         <div class="reviews-home-inner">
           <div class="reviews-home-top"><div><span class="eyebrow">GB STUDIO / MIRA</span><h1 id="reviewsHomeTitle">Mira tus proyectos</h1><p id="reviewsHomeCopy">Organizá las revisiones por proyecto y separá el feedback de montaje, VFX y cliente.</p></div><button class="reviews-home-create" id="reviewsCreateProject" type="button">＋ Nuevo proyecto</button></div>
           <div class="reviews-home-context" id="reviewsProjectContext" hidden><button id="reviewsBackProjects" type="button">← Todos los proyectos</button><div id="reviewsProjectMeta"></div><button id="reviewsCreateVersion" type="button">＋ Nueva review</button></div>
-          <div class="reviews-home-heading"><span id="reviewsHomeSectionLabel">PROYECTOS</span><span id="reviewsHomeCount">0 proyectos</span></div>
+          <div class="reviews-home-heading"><span id="reviewsHomeSectionLabel">PROYECTOS</span><div class="reviews-home-controls" id="reviewsHomeControls" hidden><label>Ordenar <select id="reviewsHomeSort" aria-label="Ordenar proyectos"><option value="recent">Actividad reciente</option><option value="name">Nombre del proyecto</option><option value="client">Cliente</option></select></label><label>Cliente <select id="reviewsHomeClientFilter" aria-label="Filtrar proyectos por cliente"><option value="all">Todos</option></select></label><div class="reviews-home-view-switch" role="group" aria-label="Vista de proyectos"><button id="reviewsHomeGridView" type="button" aria-label="Vista de tarjetas" aria-pressed="true" title="Tarjetas">▦</button><button id="reviewsHomeListView" type="button" aria-label="Vista de lista" aria-pressed="false" title="Lista">☰</button></div></div><span id="reviewsHomeCount">0 proyectos</span></div>
           <div class="reviews-home-grid" id="reviewsHomeGrid"></div>
           <div class="reviews-home-empty" id="reviewsHomeEmpty" hidden><span>▣</span><h2>Un lugar para cada devolución.</h2><p>Creá un proyecto y después abrí reviews distintas para montaje, VFX o cliente.</p><button id="reviewsEmptyCreate" type="button">＋ Crear proyecto</button></div>
         </div>
@@ -292,7 +292,7 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="layout.js?v=6"></script>
     <script src="app.js?v=76"></script>
-    <script src="reviews.js?v=31"></script>
+    <script src="reviews.js?v=32"></script>
     <script src="firebase-config.js?v=2"></script>
     <script>
       window.STORYBOARD_FIREBASE_CONFIG = window.STORYBOARD_FIREBASE_CONFIG || {

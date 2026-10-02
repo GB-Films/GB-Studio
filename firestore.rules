@@ -132,8 +132,15 @@ service cloud.firestore {
             && request.resource.data.strokesJson is string && request.resource.data.strokesJson.size() <= 200000
             && request.resource.data.resolved is bool
             && (permission('reviewsEdit') || request.resource.data.resolved == false);
-          // Only the team can edit/resolve. Guests may delete their own feedback.
-          allow update: if permission('reviewsEdit');
+          // Authors can edit only their own text; the team can resolve any comment.
+          allow update: if request.auth != null
+            && ((resource.data.authorUid == request.auth.uid
+              && (permission('reviewsEdit') || (activeShare(token) && parentFile(token, fileId)))
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text'])
+              && request.resource.data.text is string && request.resource.data.text.size() <= 5000)
+              || (permission('reviewsEdit')
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved'])
+                && request.resource.data.resolved is bool));
           allow delete: if permission('reviewsEdit') || (request.auth != null
             && activeShare(token) && parentFile(token, fileId)
             && resource.data.authorUid == request.auth.uid);
