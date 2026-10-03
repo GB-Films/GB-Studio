@@ -8,6 +8,8 @@ La descarga principal de Compi es el instalador **1.3.2 para Windows**, llamado 
 
 El naranja de marca de GB Studio, Visto y Mira es **`#FF6B2B`** (RGB 255, 107, 43), tomado del logo de Mira. La interfaz usa `--brand-orange` y `--brand-orange-rgb` en `styles.css`; los logos y las portadas predeterminadas usan el mismo valor. Los fondos y bordes sutiles derivan de ese color con transparencia. Las opciones de color personalizadas de proyectos y anotaciones siguen siendo editables.
 
+El logo de Visto aparece en su tarjeta de la portada y en el ícono de su pestaña. Los accesos rápidos creados desde `?app=storyboards` usan los PNG de Visto y su manifest para abrir directamente esa herramienta.
+
 - Cada proyecto puede mostrar la portada predeterminada, una imagen cargada y reducida para sincronizarla con el equipo, o un color sólido. La portada se elige al crear o editar el proyecto.
 - Para revisar un archivo ya guardado en Dropbox, compartí **ese archivo** y pegá su enlace en «Vincular desde Dropbox». Reviews conserva el enlace y reproduce el original; no lo sube ni crea otra copia. Dropbox recomienda `raw=1` para mostrar directamente el contenido de un enlace compartido, y la app lo aplica al reproducir.
 - La vista directa sin conexión OAuth requiere un enlace accesible para cualquiera que lo tenga, sin contraseña ni restricción de equipo. Quien obtenga ese enlace podrá abrir el archivo en Dropbox. Si la política de la productora exige enlaces privados, hará falta una integración autenticada de Dropbox; esta modalidad por enlace no evita sus permisos ni garantiza que todos los formatos de video se reproduzcan en el navegador.
