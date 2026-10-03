@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
-  <title id="title">Mira · Negro sobre naranja</title>
+  <title id="title">Mira · Naranja sobre negro con borde blanco</title>
   <defs>
     <clipPath id="tile"><rect x="6" y="6" width="245" height="245" rx="24"/></clipPath>
     <mask id="symbol" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64" style="mask-type:luminance">
@@ -10,11 +10,12 @@
     </mask>
   </defs>
   <g clip-path="url(#tile)">
-    <rect x="6" y="6" width="245" height="245" fill="#ff6b2b"/>
+    <rect x="6" y="6" width="245" height="245" fill="#080808"/>
     <g transform="translate(6 6) scale(3.828125)">
       <g transform="translate(32 32) scale(.95) translate(-32 -35)">
-        <rect width="64" height="64" fill="#080808" mask="url(#symbol)"/>
+        <rect width="64" height="64" fill="#ff6b2b" mask="url(#symbol)"/>
       </g>
     </g>
   </g>
+  <rect x="8.5" y="8.5" width="240" height="240" rx="21.5" fill="none" stroke="#ffffff" stroke-width="5"/>
 </svg>
