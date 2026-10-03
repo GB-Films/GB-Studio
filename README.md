@@ -4,6 +4,8 @@ La [página principal de GB Studio](https://gb-films.github.io/GB-Studio/) muest
 
 La descarga principal de Compi es el instalador **1.3.2 para Windows**, llamado `Compi-Setup-v1.3.2.exe`. El ZIP portátil de la misma versión está en `downloads/Compi.zip`. Para actualizar Compi, reemplazá ambos archivos con las entregas de la versión nueva, actualizá el número visible y el nombre de descarga, y publicá esos cambios.
 
+Las tarjetas de Visto y Mira muestran sus versiones desde `versions.json`, con inicio en **1.0.0**. Cada vez que publiquemos una actualización de una de esas herramientas, incrementá su versión allí: por ejemplo, `1.0.0` → `1.1.0` para una función nueva, `1.0.0` → `1.0.1` para correcciones y `1.0.0` → `2.0.0` para cambios incompatibles. Actualizá solo la herramienta modificada.
+
 ## Mira
 
 El naranja de marca de GB Studio, Visto y Mira es **`#FF6B2B`** (RGB 255, 107, 43), tomado del logo de Mira. La interfaz usa `--brand-orange` y `--brand-orange-rgb` en `styles.css`; los logos y las portadas predeterminadas usan el mismo valor. Los fondos y bordes sutiles derivan de ese color con transparencia. Las opciones de color personalizadas de proyectos y anotaciones siguen siendo editables.

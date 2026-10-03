@@ -31,6 +31,21 @@ const reviewsEntry = document.documentElement.dataset.studioApp === 'reviews';
 const pdrEntry = document.documentElement.dataset.studioApp === 'pdr';
 const homeEntry = document.documentElement.dataset.studioApp === 'home';
 
+async function updateHomeVersionLabels() {
+  try {
+    const response = await fetch('versions.json', { cache: 'no-store' });
+    if (!response.ok) return;
+    const versions = await response.json();
+    for (const [id, key] of [['homeStoryboardsVersion', 'visto'], ['homeReviewsVersion', 'mira']]) {
+      const version = versions[key];
+      const label = document.getElementById(id);
+      if (label && typeof version === 'string' && /^\d+\.\d+\.\d+$/.test(version)) label.textContent = `v${version}`;
+    }
+  } catch {}
+}
+
+if (homeEntry) updateHomeVersionLabels();
+
 function updateHomeModules(permissions = null) {
   const visitor = permissions === null;
   for (const [id, statusId, enabled, url] of [
