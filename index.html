@@ -27,17 +27,17 @@
         document.title = 'GB Studio · Visto';
         document.querySelector('meta[name="description"]').content = 'GB Studio Visto: organizá las tomas de tus proyectos.';
         document.querySelector('link[rel="icon"]').type = 'image/svg+xml';
-        document.querySelector('link[rel="icon"]').href = 'assets/visto-logo.svg?v=4';
-        document.querySelector('link[rel="apple-touch-icon"]').href = 'assets/visto-icon-180.png?v=4';
+        document.querySelector('link[rel="icon"]').href = 'assets/visto-logo.svg?v=5';
+        document.querySelector('link[rel="apple-touch-icon"]').href = 'assets/visto-icon-180.png?v=5';
         const vistoManifest = document.createElement('link');
         vistoManifest.rel = 'manifest';
-        vistoManifest.href = 'assets/visto.webmanifest?v=4';
+        vistoManifest.href = 'assets/visto.webmanifest?v=5';
         document.head.append(vistoManifest);
         const vistoShortcutIcon = document.createElement('link');
         vistoShortcutIcon.rel = 'icon';
         vistoShortcutIcon.type = 'image/png';
         vistoShortcutIcon.sizes = '32x32';
-        vistoShortcutIcon.href = 'assets/visto-icon-32.png?v=4';
+        vistoShortcutIcon.href = 'assets/visto-icon-32.png?v=5';
         document.head.append(vistoShortcutIcon);
       } else if (document.documentElement.dataset.studioApp === 'pdr') {
         document.title = 'GB Studio · PDR';
@@ -87,7 +87,7 @@
         <div class="studio-home-inner">
           <section class="studio-home-tools" aria-labelledby="studioHomeToolsTitle"><div class="studio-home-tools-header"><div><span class="studio-home-kicker">APLICACIONES</span><h2 id="studioHomeToolsTitle">¿Dónde trabajamos hoy?</h2></div></div>
             <div class="studio-home-cards">
-              <a class="studio-home-card studio-home-card-storyboards" id="homeStoryboardsLink" href="?app=storyboards"><span class="studio-home-card-art studio-home-storyboard-art" aria-hidden="true"><img class="studio-home-visto-logo" src="assets/visto-logo.svg?v=4" alt="" /></span><span class="studio-home-card-bottom"><strong>Visto <span class="studio-home-version" id="homeStoryboardsVersion">v1.0.2</span></strong><span>Organizá tomas, armá páginas y presentá la idea antes de producir.</span><small id="homeStoryboardsStatus">Iniciá sesión para entrar →</small></span></a>
+              <a class="studio-home-card studio-home-card-storyboards" id="homeStoryboardsLink" href="?app=storyboards"><span class="studio-home-card-art studio-home-storyboard-art" aria-hidden="true"><img class="studio-home-visto-logo" src="assets/visto-logo.svg?v=5" alt="" /></span><span class="studio-home-card-bottom"><strong>Visto <span class="studio-home-version" id="homeStoryboardsVersion">v1.0.3</span></strong><span>Organizá tomas, armá páginas y presentá la idea antes de producir.</span><small id="homeStoryboardsStatus">Iniciá sesión para entrar →</small></span></a>
               <a class="studio-home-card studio-home-card-reviews" id="homeReviewsLink" href="?app=reviews"><span class="studio-home-card-art studio-home-reviews-art" aria-hidden="true"><img class="studio-home-mira-logo" src="assets/mira-app-icon-final.svg?v=3" alt="" /></span><span class="studio-home-card-bottom"><strong>Mira <span class="studio-home-version" id="homeReviewsVersion">v1.0.3</span></strong><span>Revisá fotos y videos, compartí versiones y reuní las correcciones.</span><small id="homeReviewsStatus">Iniciá sesión para entrar →</small></span></a>
               <button class="studio-home-card studio-home-card-compi" id="homeCompiLink" type="button" aria-label="Descargar Compi versión 1.8.4 para Windows"><span class="studio-home-card-art studio-home-compi-art" aria-hidden="true"><img src="assets/compi-icon.png?v=2" alt="" /></span><span class="studio-home-card-bottom"><strong>Compi <span class="studio-home-version">v1.8.4</span></strong><span>Comprimí videos o fotos de la manera más rápida.</span><small id="homeCompiStatus">Iniciá sesión para descargar ↓</small></span></button>
               <a class="studio-home-card studio-home-card-pdr" id="homePdrLink" href="?app=pdr" aria-labelledby="homePdrTitle"><span class="studio-home-card-soon">ABRIR PDR</span><span class="studio-home-card-art studio-home-pdr-art" aria-hidden="true"><span class="studio-home-pdr-sheet"><span class="studio-home-pdr-sheet-heading">PLAN DE RODAJE <b>GB</b></span><span class="studio-home-pdr-row"><i>06:00</i><i>LLAMADO DE EQUIPO</i><i>01</i></span><span class="studio-home-pdr-row"><i>08:30</i><i>PRIMERA TOMA</i><i>02</i></span><span class="studio-home-pdr-row"><i>13:00</i><i>CAMBIO DE SET</i><i>03</i></span></span></span><span class="studio-home-card-bottom"><strong id="homePdrTitle">PDR</strong><span>Planes de rodaje, jornadas y equipo organizados en un solo lugar.</span><small id="homePdrStatus">Iniciá sesión para entrar →</small></span></a>
