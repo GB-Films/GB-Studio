@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
   <title id="title">Visto</title>
-  <desc id="desc">Cuadro de storyboard centrado en naranja sobre fondo negro, con tic blanco y bordes suaves.</desc>
+  <desc id="desc">Cuadro de storyboard centrado en naranja sobre fondo negro, con tic blanco y borde blanco redondeado.</desc>
   <defs><clipPath id="visto-tile"><rect x="6" y="6" width="245" height="245" rx="24"/></clipPath></defs>
   <g clip-path="url(#visto-tile)"><g transform="translate(6 6) scale(0.19140625)">
     <rect width="1280" height="1280" fill="#111111"/>
@@ -13,4 +13,5 @@
       <path d="M747 820l106 114 264-279" fill="none" stroke="#ffffff" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>
     </g>
   </g></g>
+  <rect x="8.5" y="8.5" width="240" height="240" rx="21.5" fill="none" stroke="#ffffff" stroke-width="5"/>
 </svg>
